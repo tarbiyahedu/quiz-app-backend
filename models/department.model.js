@@ -26,7 +26,6 @@ const departmentSchema = mongoose.Schema({
 });
 
 // Index for better query performance
-departmentSchema.index({ name: 1 });
 departmentSchema.index({ createdBy: 1 });
 departmentSchema.index({ isActive: 1 });
 
