@@ -4,7 +4,8 @@ const LiveQuiz = require('../models/liveQuiz.model');
 class QuizScheduler {
   constructor() {
     this.jobs = new Map();
-    this.initializeScheduler();
+    // Remove or comment out the following line:
+    // this.initializeScheduler();
   }
 
   // Initialize scheduler and load existing scheduled quizzes

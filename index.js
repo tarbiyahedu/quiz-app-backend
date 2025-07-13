@@ -121,13 +121,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
-  console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
-  console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
+// Add at the top, after other requires
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
 });
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+// Start server
+// Remove or comment out the following block:
+// const PORT = process.env.PORT || 5000;
+// server.listen(PORT, () => {
+//   console.log(`🚀 Server listening on port ${PORT}`);
+//   console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
+//   console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
+// });
 
 // Initialize scheduler after database connection
 mongoose.connection.once('open', () => {
@@ -152,5 +161,8 @@ process.on('SIGINT', () => {
     console.log('Process terminated');
   });
 });
+
+// At the end of the file, export the app for Vercel:
+module.exports = app;
 
 
