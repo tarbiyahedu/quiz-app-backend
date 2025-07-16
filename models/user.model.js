@@ -66,9 +66,6 @@ const userSchema = mongoose.Schema({
 });
 
 // Index for better query performance
-userSchema.index({ email: 1 });
-userSchema.index({ googleId: 1 });
-userSchema.index({ department: 1 });
-userSchema.index({ role: 1 });
+userSchema.index({ department: 1, role: 1, approved: 1, createdAt: -1 });
 
 module.exports = mongoose.model("User", userSchema);

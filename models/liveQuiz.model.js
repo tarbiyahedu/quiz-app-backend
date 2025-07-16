@@ -95,5 +95,6 @@ liveQuizSchema.index({ isLive: 1 });
 liveQuizSchema.index({ createdBy: 1 });
 liveQuizSchema.index({ liveStartAt: 1 });
 liveQuizSchema.index({ liveEndAt: 1 });
+liveQuizSchema.index({ department: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("LiveQuiz", liveQuizSchema); 

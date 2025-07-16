@@ -72,5 +72,6 @@ assignmentQuizSchema.index({ createdBy: 1 });
 assignmentQuizSchema.index({ releaseDate: 1 });
 assignmentQuizSchema.index({ deadline: 1 });
 assignmentQuizSchema.index({ isActive: 1 });
+assignmentQuizSchema.index({ department: 1, isActive: 1, createdAt: -1 });
 
 module.exports = mongoose.model("AssignmentQuiz", assignmentQuizSchema); 

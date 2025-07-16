@@ -67,9 +67,7 @@ const assignmentAnswerSchema = mongoose.Schema({
 assignmentAnswerSchema.index({ userId: 1, questionId: 1, attemptNumber: 1 }, { unique: true });
 
 // Index for better query performance
-assignmentAnswerSchema.index({ assignmentId: 1 });
-assignmentAnswerSchema.index({ userId: 1 });
-assignmentAnswerSchema.index({ submittedAt: 1 });
+assignmentAnswerSchema.index({ assignmentId: 1, userId: 1, questionId: 1, attemptNumber: 1, submittedAt: -1 });
 assignmentAnswerSchema.index({ isCorrect: 1 });
 assignmentAnswerSchema.index({ reviewed: 1 });
 

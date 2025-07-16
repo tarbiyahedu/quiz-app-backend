@@ -1,4 +1,4 @@
-const { ObjectId } = require("mongodb");
+const mongoose = require("mongoose");
 const { v4: uuidv4 } = require("uuid");
 const User = require("../models/user.model");
 const Department = require("../models/department.model");
@@ -49,7 +49,7 @@ const getAllUsers = async (req, res) => {
 const getOneUser = async (req, res) => {
   try {
     const id = req.params.id;
-    const query = { _id: new ObjectId(id) };
+    const query = { _id: mongoose.Types.ObjectId(id) };
     const result = await User.findOne(query)
       .populate('department', 'name description')
       .select('-password');
@@ -361,7 +361,7 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    await User.deleteOne({ _id: new ObjectId(id) });
+    await User.deleteOne({ _id: mongoose.Types.ObjectId(id) });
     
     res.status(200).json({
       success: true,

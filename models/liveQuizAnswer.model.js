@@ -59,9 +59,7 @@ const liveQuizAnswerSchema = mongoose.Schema({
 liveQuizAnswerSchema.index({ userId: 1, questionId: 1 }, { unique: true });
 
 // Index for better query performance
-liveQuizAnswerSchema.index({ liveQuizId: 1 });
-liveQuizAnswerSchema.index({ userId: 1 });
-liveQuizAnswerSchema.index({ submittedAt: 1 });
+liveQuizAnswerSchema.index({ liveQuizId: 1, userId: 1, questionId: 1, submittedAt: -1 });
 liveQuizAnswerSchema.index({ isCorrect: 1 });
 
 module.exports = mongoose.model("LiveQuizAnswer", liveQuizAnswerSchema); 

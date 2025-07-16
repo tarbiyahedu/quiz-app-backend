@@ -88,5 +88,6 @@ assignmentLeaderboardSchema.index({ assignmentId: 1, finalScore: -1 }); // For r
 assignmentLeaderboardSchema.index({ assignmentId: 1, rank: 1 });
 assignmentLeaderboardSchema.index({ userId: 1 });
 assignmentLeaderboardSchema.index({ submittedAt: 1 });
+assignmentLeaderboardSchema.index({ assignmentId: 1, userId: 1, attemptNumber: 1, finalScore: -1, submittedAt: 1 });
 
 module.exports = mongoose.model("AssignmentLeaderboard", assignmentLeaderboardSchema); 

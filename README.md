@@ -133,7 +133,7 @@ The following default data is created:
 
 > **Important**: Change the default admin password in production environments!
 
-## �� API Documentation
+## 📄 API Documentation
 
 The API documentation is available at `/api/docs` when the server is running.
 
@@ -337,4 +337,35 @@ For support and questions:
 - Assignment quiz system
 - User and department management
 - Comprehensive API documentation
+
+---
+
+## 🚀 Environment Variables Setup
+
+Create a `.env` file in your project root (not committed to git). Here are the required variables:
+
+```
+MONGO_URL=mongodb+srv://username:password@cluster.mongodb.net/dbname
+JWT_SECRET=your_jwt_secret_here
+GOOGLE_CLIENT_ID=your_google_client_id_here
+API_URL=http://localhost:5000
+CLIENT_ORIGIN=http://localhost:3000
+PORT=5000
+NODE_ENV=development
+```
+
+> **On Vercel:**
+> - Go to your project → Settings → Environment Variables.
+> - Add each variable above with your actual values.
+> - Redeploy after saving.
+
+---
+
+## 🛠️ Troubleshooting
+
+- **Missing config.js**: This project does not require a `config.js` file. All configuration is handled via environment variables.
+- **Cannot read properties of undefined (reading 'MONGODB_URI')**: Ensure you have set `MONGO_URL` in your environment variables (locally in `.env`, and in Vercel dashboard for deployment).
+- **.env not uploaded to Vercel**: Vercel does not upload your local `.env` file. You must manually add variables in the dashboard.
+
+---
  

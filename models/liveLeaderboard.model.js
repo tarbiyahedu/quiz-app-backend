@@ -72,5 +72,6 @@ liveLeaderboardSchema.index({ liveQuizId: 1, score: -1 }); // For ranking
 liveLeaderboardSchema.index({ liveQuizId: 1, rank: 1 });
 liveLeaderboardSchema.index({ userId: 1 });
 liveLeaderboardSchema.index({ completedAt: 1 });
+liveLeaderboardSchema.index({ liveQuizId: 1, userId: 1, score: -1, timeTaken: 1 });
 
 module.exports = mongoose.model("LiveLeaderboard", liveLeaderboardSchema); 
