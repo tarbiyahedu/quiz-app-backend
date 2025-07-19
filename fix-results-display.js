@@ -165,9 +165,9 @@ async function fixResultsDisplay() {
 
     // Provide correct URLs
     console.log('\n🔗 CORRECT URLs TO USE:');
-    console.log('Results page: http://localhost:3000/result');
-    console.log('Complete quiz details: http://localhost:3000/complete-quiz/live/[QUIZ_ID]');
-    console.log('Admin results overview: http://localhost:3000/admin/results-overview/[QUIZ_ID]');
+    console.log('Results page: https://tarbiyah-live-quiz-app.vercel.app/result');
+    console.log('Complete quiz details: https://tarbiyah-live-quiz-app.vercel.app/complete-quiz/live/[QUIZ_ID]');
+    console.log('Admin results overview: https://tarbiyah-live-quiz-app.vercel.app/admin/results-overview/[QUIZ_ID]');
 
   } catch (error) {
     console.error('Error fixing results display:', error);

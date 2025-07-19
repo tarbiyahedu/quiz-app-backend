@@ -63,8 +63,8 @@ let timerInterval;
 const initializeSocket = (server) => {
   io = require('socket.io')(server, {
     cors: {
-      // origin: "https://tarbiyah-live-quiz-app.vercel.app",
-      origin: "http://localhost:3000",
+      origin: "https://tarbiyah-live-quiz-app.vercel.app",
+      // origin: "http://localhost:3000",
       methods: ["GET", "POST"],
       credentials: true
     }

@@ -157,9 +157,9 @@ async function fixCurrentQuiz() {
 
     // Provide correct URLs
     console.log(`\n🔗 CORRECT URLs TO USE:`);
-    console.log(`Results page: http://localhost:3000/result`);
-    console.log(`Complete quiz details: http://localhost:3000/complete-quiz/live/${quizId}`);
-    console.log(`Admin results overview: http://localhost:3000/admin/results-overview/${quizId}`);
+    console.log(`Results page: https://tarbiyah-live-quiz-app.vercel.app/result`);
+    console.log(`Complete quiz details: https://tarbiyah-live-quiz-app.vercel.app/complete-quiz/live/${quizId}`);
+    console.log(`Admin results overview: https://tarbiyah-live-quiz-app.vercel.app/admin/results-overview/${quizId}`);
 
   } catch (error) {
     console.error('Error fixing current quiz:', error);

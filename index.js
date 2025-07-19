@@ -66,8 +66,8 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Middleware
 app.use(cors({
-  origin: "http://localhost:3000",
-  // origin: "https://tarbiyah-live-quiz-app.vercel.app",
+  // origin: "http://localhost:3000",
+  origin: "https://tarbiyah-live-quiz-app.vercel.app",
   credentials: true
 }));
 app.use(express.json());
@@ -137,8 +137,8 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
   console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
-  // console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'https://tarbiyah-live-quiz-app.vercel.app'}`);
-  console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
+  console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'https://tarbiyah-live-quiz-app.vercel.app'}`);
+  // console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
 });
 
 // Initialize scheduler after database connection
