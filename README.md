@@ -348,7 +348,7 @@ Create a `.env` file in your project root (not committed to git). Here are the r
 MONGO_URL=mongodb+srv://username:password@cluster.mongodb.net/dbname
 JWT_SECRET=your_jwt_secret_here
 GOOGLE_CLIENT_ID=your_google_client_id_here
-API_URL=http://localhost:5000
+API_URL=https://quiz-app-backend-main.vercel.app
 CLIENT_ORIGIN=http://localhost:3000
 PORT=5000
 NODE_ENV=development

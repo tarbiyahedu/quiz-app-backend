@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { verifyJWT, requireAdmin } = require("../middleware/auth");
-const { addLiveQuizQuestion, getLiveQuizQuestions } = require("../controllers/liveQuizQuestion.controller");
+const { addLiveQuizQuestion, getLiveQuizQuestions, updateLiveQuizQuestion, deleteLiveQuizQuestion } = require("../controllers/liveQuizQuestion.controller");
 
 router.use(verifyJWT);
 
@@ -153,14 +153,8 @@ router.get('/:quizId', getLiveQuizQuestions);
  *       404:
  *         description: Question not found
  */
-router.put('/:questionId', requireAdmin, (req, res) => {
-  // TODO: Implement updateLiveQuizQuestion controller
-  res.status(501).json({ message: "Not implemented yet" });
-});
+router.put('/:questionId', requireAdmin, updateLiveQuizQuestion);
 
-router.delete('/:questionId', requireAdmin, (req, res) => {
-  // TODO: Implement deleteLiveQuizQuestion controller
-  res.status(501).json({ message: "Not implemented yet" });
-});
+router.delete('/:questionId', requireAdmin, deleteLiveQuizQuestion);
 
 module.exports = router; 

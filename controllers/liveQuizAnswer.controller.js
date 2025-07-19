@@ -109,6 +109,177 @@ const submitLiveQuizAnswer = async (req, res) => {
   }
 };
 
+// SUBMIT MULTIPLE LIVE QUIZ ANSWERS (BULK)
+const submitMultipleLiveQuizAnswers = async (req, res) => {
+  try {
+    const { quizId, answers } = req.body;
+
+    console.log('Bulk submission request:', { quizId, answersCount: answers?.length });
+
+    if (!Array.isArray(answers) || answers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Answers array is required"
+      });
+    }
+
+    // Check if quiz exists and is active
+    const quiz = await LiveQuiz.findById(quizId);
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: "Live quiz not found"
+      });
+    }
+
+    if (quiz.status !== 'live' && !quiz.isLive) {
+      return res.status(400).json({
+        success: false,
+        message: "Quiz is not live"
+      });
+    }
+
+    // Get all questions for this quiz
+    const questions = await LiveQuizQuestion.find({ liveQuizId: quizId });
+    const questionMap = new Map(questions.map(q => [q._id.toString(), q]));
+
+    console.log(`Quiz has ${questions.length} questions, submitting ${answers.length} answers`);
+
+    // Check if user has already answered any of these questions for THIS specific quiz
+    const existingAnswers = await LiveQuizAnswer.find({
+      userId: req.user._id,
+      liveQuizId: quizId,
+      questionId: { $in: answers.map(a => a.questionId) }
+    });
+
+    if (existingAnswers.length > 0) {
+      console.log(`User has already answered ${existingAnswers.length} questions for this quiz`);
+      
+      // Instead of returning error, delete existing answers and allow resubmission
+      await LiveQuizAnswer.deleteMany({
+        userId: req.user._id,
+        liveQuizId: quizId
+      });
+      console.log('Deleted existing answers to allow resubmission');
+    }
+
+    const submittedAnswers = [];
+    let totalScore = 0;
+    let totalTimeTaken = 0;
+
+    // Process each answer
+    for (const answerData of answers) {
+      const { questionId, answerText, timeTaken = 0 } = answerData;
+
+      const question = questionMap.get(questionId);
+      if (!question) {
+        console.log(`Question not found: ${questionId}`);
+        continue; // Skip invalid questions
+      }
+
+      console.log(`Processing answer for question: ${question.questionText}`);
+      console.log(`User answer: ${answerText}, Correct answer: ${question.correctAnswer}`);
+
+      // Validate answer based on question type
+      let isCorrect = false;
+      let score = 0;
+
+      // Only check correctness if answer is not empty
+      if (answerText && answerText.trim() !== '') {
+        switch (question.type) {
+          case 'MCQ':
+            // For MCQ, check if answer matches the correct option value
+            if (question.options && question.correctAnswer) {
+              const optionMap = {
+                'A': question.options[0],
+                'B': question.options[1], 
+                'C': question.options[2],
+                'D': question.options[3]
+              };
+              const correctOptionValue = optionMap[question.correctAnswer];
+              isCorrect = answerText === correctOptionValue;
+            } else {
+              isCorrect = question.correctAnswer === answerText;
+            }
+            break;
+          case 'TF':
+            isCorrect = question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
+            break;
+          case 'Short':
+          case 'Long':
+            // For text answers, check for partial matches
+            if (answerText && question.correctAnswer) {
+              const userAnswer = answerText.toLowerCase().trim();
+              const correctAnswer = question.correctAnswer.toLowerCase().trim();
+              isCorrect = userAnswer === correctAnswer || 
+                         userAnswer.includes(correctAnswer) || 
+                         correctAnswer.includes(userAnswer);
+            }
+            break;
+          case 'Match':
+            isCorrect = JSON.stringify(question.correctAnswer) === JSON.stringify(answerText);
+            break;
+          default:
+            isCorrect = false;
+        }
+      }
+
+      // Calculate score
+      if (isCorrect) {
+        score = question.marks;
+        totalScore += score;
+      }
+
+      totalTimeTaken += timeTaken;
+
+      console.log(`Answer result: Correct=${isCorrect}, Score=${score}/${question.marks}`);
+
+      // Create answer
+      const newAnswer = new LiveQuizAnswer({
+        userId: req.user._id,
+        liveQuizId: quizId,
+        questionId: questionId,
+        answerText: answerText || '', // Ensure empty string if no answer
+        submittedAt: new Date(),
+        timeTaken,
+        isCorrect,
+        score
+      });
+
+      await newAnswer.save();
+      submittedAnswers.push(newAnswer);
+    }
+
+    console.log(`Successfully submitted ${submittedAnswers.length} answers`);
+
+    // Update leaderboard
+    await updateLiveLeaderboard(quizId, req.user._id);
+
+    res.status(201).json({
+      success: true,
+      message: "Answers submitted successfully",
+      data: {
+        submittedCount: submittedAnswers.length,
+        totalScore,
+        totalTimeTaken,
+        answers: submittedAnswers.map(a => ({
+          answerId: a._id,
+          questionId: a.questionId,
+          isCorrect: a.isCorrect,
+          score: a.score,
+          timeTaken: a.timeTaken
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Error in bulk submission:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // GET LIVE QUIZ ANSWERS
 const getLiveQuizAnswers = async (req, res) => {
   try {
@@ -286,6 +457,7 @@ const getCompletedQuizzesForUser = async (req, res) => {
           quiz: answer.liveQuizId,
           answers: [],
           totalScore: 0,
+          totalPossibleScore: 0,
           totalQuestions: 0,
           correctAnswers: 0,
           timeTaken: 0
@@ -293,6 +465,7 @@ const getCompletedQuizzesForUser = async (req, res) => {
       }
       quizGroups[quizId].answers.push(answer);
       quizGroups[quizId].totalScore += answer.score;
+      quizGroups[quizId].totalPossibleScore += answer.questionId.marks;
       quizGroups[quizId].totalQuestions += 1;
       if (answer.isCorrect) {
         quizGroups[quizId].correctAnswers += 1;
@@ -306,7 +479,7 @@ const getCompletedQuizzesForUser = async (req, res) => {
       title: group.quiz.title,
       description: group.quiz.description,
       type: 'Live Quiz',
-      score: group.totalQuestions > 0 ? Math.round((group.totalScore / group.totalQuestions) * 100) : 0,
+      score: group.totalPossibleScore > 0 ? Math.round((group.totalScore / group.totalPossibleScore) * 100) : 0,
       totalQuestions: group.totalQuestions,
       correctAnswers: group.correctAnswers,
       timeTaken: Math.round(group.timeTaken / 60), // Convert to minutes
@@ -333,69 +506,89 @@ const getCompletedQuizDetails = async (req, res) => {
     const { quizId } = req.params;
     const userId = req.user._id;
 
-    // Get all answers for this specific quiz and user
-    const answers = await LiveQuizAnswer.find({ 
-      userId, 
-      liveQuizId: quizId 
-    })
-      .populate({
-        path: 'questionId',
-        select: 'questionText type options correctAnswer marks order imageUrl videoUrl'
-      })
-      .populate({
-        path: 'liveQuizId',
-        select: 'title description timeLimit department startTime endTime',
-        populate: {
-          path: 'department',
-          select: 'name'
-        }
-      })
-      .sort({ 'questionId.order': 1 });
+    // Get quiz details
+    const quiz = await LiveQuiz.findById(quizId)
+      .populate('department', 'name')
+      .populate('createdBy', 'name email');
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: "Quiz not found"
+      });
+    }
+
+    // Get all questions for this quiz
+    const questions = await LiveQuizQuestion.find({ liveQuizId: quizId })
+      .sort({ order: 1 });
+
+    // Get all answers for this user in this quiz
+    const answers = await LiveQuizAnswer.find({
+      liveQuizId: quizId,
+      userId: userId
+    }).populate('questionId', 'questionText type marks correctAnswer options imageUrl videoUrl');
 
     if (answers.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "No completed quiz found"
+        message: "No answers found for this quiz"
       });
     }
 
-    const quiz = answers[0].liveQuizId;
+    // Calculate totals
     const totalScore = answers.reduce((sum, answer) => sum + answer.score, 0);
+    const totalPossibleScore = questions.reduce((sum, question) => sum + question.marks, 0);
+    const totalTime = answers.reduce((sum, answer) => sum + answer.timeTaken, 0);
     const correctAnswers = answers.filter(answer => answer.isCorrect).length;
-    const totalTimeTaken = answers.reduce((sum, answer) => sum + answer.timeTaken, 0);
+    const totalQuestions = questions.length;
+    
+    // Calculate percentage score based on total possible score
+    const percentageScore = totalPossibleScore > 0 ? Math.round((totalScore / totalPossibleScore) * 100) : 0;
 
-    const quizDetails = {
-      quizId: quiz._id,
-      title: quiz.title,
-      description: quiz.description,
-      type: 'Live Quiz',
-      score: answers.length > 0 ? Math.round((totalScore / answers.length) * 100) : 0,
-      totalQuestions: answers.length,
-      correctAnswers,
-      timeTaken: Math.round(totalTimeTaken / 60), // Convert to minutes
-      completionDate: answers[0]?.submittedAt,
-      department: quiz.department?.name || 'Unknown',
-      answers: answers.map(answer => ({
+    // Prepare answer details with question information
+    const answerDetails = answers.map((answer, index) => {
+      const question = answer.questionId;
+      return {
         questionId: answer.questionId._id,
-        questionText: answer.questionId.questionText,
-        questionType: answer.questionId.type,
-        questionOptions: answer.questionId.options,
-        correctAnswer: answer.questionId.correctAnswer,
+        questionText: question.questionText,
+        questionType: question.type,
+        questionOptions: question.options || [],
+        correctAnswer: question.correctAnswer,
         userAnswer: answer.answerText,
         isCorrect: answer.isCorrect,
         score: answer.score,
-        marks: answer.questionId.marks,
-        order: answer.questionId.order,
-        imageUrl: answer.questionId.imageUrl,
-        videoUrl: answer.questionId.videoUrl,
+        marks: question.marks,
+        order: index + 1,
+        imageUrl: question.imageUrl,
+        videoUrl: question.videoUrl,
         timeTaken: answer.timeTaken
-      }))
+      };
+    });
+
+    // Get completion date from the latest answer
+    const completionDate = answers.reduce((latest, answer) => 
+      answer.submittedAt > latest ? answer.submittedAt : latest, new Date(0)
+    );
+
+    const result = {
+      quizId: quiz._id,
+      title: quiz.title,
+      description: quiz.description,
+      type: 'live',
+      score: percentageScore,
+      totalQuestions: totalQuestions,
+      correctAnswers: correctAnswers,
+      timeTaken: Math.round(totalTime / 60), // Convert to minutes
+      completionDate: completionDate,
+      department: quiz.department?.name || 'Unknown',
+      answers: answerDetails
     };
 
     res.status(200).json({
       success: true,
-      data: quizDetails
+      data: result
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -616,6 +809,7 @@ const getAllCompletedQuizzesForUser = async (req, res) => {
           quiz: answer.liveQuizId,
           answers: [],
           totalScore: 0,
+          totalPossibleScore: 0,
           totalQuestions: 0,
           correctAnswers: 0,
           timeTaken: 0
@@ -623,6 +817,7 @@ const getAllCompletedQuizzesForUser = async (req, res) => {
       }
       liveQuizGroups[quizId].answers.push(answer);
       liveQuizGroups[quizId].totalScore += answer.score;
+      liveQuizGroups[quizId].totalPossibleScore += answer.questionId.marks;
       liveQuizGroups[quizId].totalQuestions += 1;
       if (answer.isCorrect) {
         liveQuizGroups[quizId].correctAnswers += 1;
@@ -639,6 +834,7 @@ const getAllCompletedQuizzesForUser = async (req, res) => {
           assignment: answer.assignmentId,
           answers: [],
           totalScore: 0,
+          totalPossibleScore: 0,
           totalQuestions: 0,
           correctAnswers: 0,
           timeTaken: 0
@@ -646,6 +842,7 @@ const getAllCompletedQuizzesForUser = async (req, res) => {
       }
       assignmentGroups[assignmentId].answers.push(answer);
       assignmentGroups[assignmentId].totalScore += answer.score;
+      assignmentGroups[assignmentId].totalPossibleScore += answer.questionId.marks;
       assignmentGroups[assignmentId].totalQuestions += 1;
       if (answer.isCorrect) {
         assignmentGroups[assignmentId].correctAnswers += 1;
@@ -658,7 +855,7 @@ const getAllCompletedQuizzesForUser = async (req, res) => {
       title: group.quiz.title,
       description: group.quiz.description,
       type: 'Live Quiz',
-      score: group.totalQuestions > 0 ? Math.round((group.totalScore / group.totalQuestions) * 100) : 0,
+      score: group.totalPossibleScore > 0 ? Math.round((group.totalScore / group.totalPossibleScore) * 100) : 0,
       totalQuestions: group.totalQuestions,
       correctAnswers: group.correctAnswers,
       timeTaken: Math.round(group.timeTaken / 60), // Convert to minutes
@@ -673,7 +870,7 @@ const getAllCompletedQuizzesForUser = async (req, res) => {
       title: group.assignment.title,
       description: group.assignment.description,
       type: 'Assignment Quiz',
-      score: group.totalQuestions > 0 ? Math.round((group.totalScore / group.totalQuestions) * 100) : 0,
+      score: group.totalPossibleScore > 0 ? Math.round((group.totalScore / group.totalPossibleScore) * 100) : 0,
       totalQuestions: group.totalQuestions,
       correctAnswers: group.correctAnswers,
       timeTaken: 0, // Assignment answers don't track time
@@ -759,5 +956,6 @@ module.exports = {
   getCompletedQuizzesForUser,
   getCompletedQuizDetails,
   getAllCompletedQuizzesForUser,
-  getCompletedQuizDetailsForAdmin
+  getCompletedQuizDetailsForAdmin,
+  submitMultipleLiveQuizAnswers
 }; 

@@ -63,9 +63,14 @@ const getAllAssignmentQuizzes = async (req, res) => {
     if (department) filter.department = department;
     if (isActive !== undefined) filter.isActive = isActive;
 
-    // If user is student, only show assignments from their department
+    // If user is student, show assignments from all their departments
     if (req.user.role === 'student') {
-      filter.department = req.user.department;
+      if (req.user.departments && req.user.departments.length > 0) {
+        filter.department = { $in: req.user.departments };
+      } else if (req.user.department) {
+        // Fallback to old department field for backward compatibility
+        filter.department = req.user.department;
+      }
     }
 
     const skip = (page - 1) * limit;

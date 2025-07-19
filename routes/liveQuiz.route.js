@@ -12,7 +12,8 @@ const {
   publishLiveQuizResults,
   getAvailableLiveQuizzesForStudent,
   scheduleLiveQuiz,
-  cancelScheduledQuiz
+  cancelScheduledQuiz,
+  getQuizStatistics
 } = require("../controllers/liveQuiz.controller");
 
 /**
@@ -166,6 +167,10 @@ router.get("/available",
   (req, res, next) => { console.log('requireStudent passed'); next(); },
   getAvailableLiveQuizzesForStudent
 );
+
+// Admin: Get quiz statistics with participant counts and scores
+router.get("/statistics", verifyJWT, requireAdmin, getQuizStatistics);
+
 router.get("/:id", verifyJWT, getOneLiveQuiz);
 
 router.put("/:id", verifyJWT, requireAdmin, updateLiveQuiz);
@@ -296,7 +301,7 @@ router.post("/:id/end", verifyJWT, requireAdmin, endLiveQuiz);
  *       404:
  *         description: Quiz not found
  */
-router.post("/:id/schedule", requireAdmin, scheduleLiveQuiz);
+router.post("/:id/schedule", verifyJWT, requireAdmin, scheduleLiveQuiz);
 
 /**
  * @swagger
@@ -323,6 +328,6 @@ router.post("/:id/schedule", requireAdmin, scheduleLiveQuiz);
  *       404:
  *         description: Quiz not found
  */
-router.post("/:id/cancel-schedule", requireAdmin, cancelScheduledQuiz);
+router.post("/:id/cancel-schedule", verifyJWT, requireAdmin, cancelScheduledQuiz);
 
 module.exports = router; 

@@ -9,7 +9,8 @@ const {
   getCompletedQuizzesForUser,
   getCompletedQuizDetails,
   getAllCompletedQuizzesForUser,
-  getCompletedQuizDetailsForAdmin
+  getCompletedQuizDetailsForAdmin,
+  submitMultipleLiveQuizAnswers
 } = require("../controllers/liveQuizAnswer.controller");
 
 router.use(verifyJWT);
@@ -56,6 +57,53 @@ router.use(verifyJWT);
  *         description: Answer already submitted
  */
 router.post("/submit", requireStudent, submitLiveQuizAnswer);
+
+/**
+ * @swagger
+ * /api/live-quiz-answers/submit-multiple:
+ *   post:
+ *     summary: Submit multiple answers for a live quiz
+ *     tags: [Live Quiz Answers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - quizId
+ *               - answers
+ *             properties:
+ *               quizId:
+ *                 type: string
+ *                 description: ID of the live quiz
+ *               answers:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     questionId:
+ *                       type: string
+ *                       description: ID of the question
+ *                     answerText:
+ *                       type: string
+ *                       description: User's answer
+ *                     timeTaken:
+ *                       type: number
+ *                       description: Time taken to answer in seconds
+ *     responses:
+ *       201:
+ *         description: Answers submitted successfully
+ *       400:
+ *         description: Invalid request or quiz not active
+ *       404:
+ *         description: Quiz not found
+ *       409:
+ *         description: Some answers already submitted
+ */
+router.post("/submit-multiple", requireStudent, submitMultipleLiveQuizAnswers);
 
 /**
  * @swagger

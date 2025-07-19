@@ -13,13 +13,20 @@ const getAllUsers = async (req, res) => {
     
     const filter = {};
     if (role) filter.role = role;
-    if (department) filter.department = department;
+    if (department) {
+      // Support both old department field and new departments array
+      filter.$or = [
+        { department: department },
+        { departments: department }
+      ];
+    }
     if (approved !== undefined) filter.approved = approved === 'true';
 
     const skip = (page - 1) * limit;
     
     const users = await User.find(filter)
-      .populate('department', 'name')
+      .populate('departments', 'name')
+      .populate('department', 'name') // Keep for backward compatibility
       .select('-password')
       .skip(skip)
       .limit(parseInt(limit))
@@ -51,7 +58,8 @@ const getOneUser = async (req, res) => {
     const id = req.params.id;
     const query = { _id: mongoose.Types.ObjectId(id) };
     const result = await User.findOne(query)
-      .populate('department', 'name description')
+      .populate('departments', 'name description')
+      .populate('department', 'name description') // Keep for backward compatibility
       .select('-password');
     
     if (result) {
@@ -77,7 +85,8 @@ const getOneUser = async (req, res) => {
 const getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate('department', 'name description')
+      .populate('departments', 'name description')
+      .populate('department', 'name description') // Keep for backward compatibility
       .select('-password');
 
     res.status(200).json({
@@ -95,7 +104,7 @@ const getCurrentUser = async (req, res) => {
 // REGISTER USER API
 const createUser = async (req, res) => {
   try {
-    const { name, email, password, role = 'student', department, number } = req.body;
+    const { name, email, password, role = 'student', department, departments, number } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -110,13 +119,24 @@ const createUser = async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+    // Handle departments - support both old and new format
+    let userDepartments = [];
+    if (role === 'student') {
+      if (departments && Array.isArray(departments)) {
+        userDepartments = departments;
+      } else if (department) {
+        userDepartments = [department];
+      }
+    }
+
     // Create new user
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
       role,
-      department: role === 'student' ? department : undefined,
+      departments: userDepartments,
+      department: role === 'student' && department ? department : undefined, // Keep for backward compatibility
       number,
       approved: true // All users are auto-approved
     });
@@ -136,6 +156,7 @@ const createUser = async (req, res) => {
           email: newUser.email,
           role: newUser.role,
           approved: newUser.approved,
+          departments: newUser.departments,
           department: newUser.department,
           number: newUser.number
         },
@@ -235,6 +256,7 @@ const loginUser = async (req, res) => {
           role: user.role,
           avatar: user.avatar,
           approved: user.approved,
+          departments: user.departments,
           department: user.department
         },
         token
@@ -284,13 +306,13 @@ const verifyToken = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const id = req.params.id;
-    const { name, email, department, role, number, password, avatar } = req.body;
+    const { name, email, department, departments, role, number, password, avatar } = req.body;
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
     // Only admin can update role or department
-    if (req.user.role !== 'admin' && (role || department)) {
+    if (req.user.role !== 'admin' && (role || department || departments)) {
       return res.status(403).json({ message: 'Only admin can update role or department.' });
     }
     if (name) user.name = name;
@@ -298,14 +320,28 @@ const updateUser = async (req, res) => {
     if (number) user.number = number;
     if (avatar) user.avatar = avatar;
     if (role) user.role = role;
-    if (department) user.department = department;
+    
+    // Handle departments update
+    if (departments !== undefined) {
+      user.departments = Array.isArray(departments) ? departments : [];
+    } else if (department) {
+      // If only department is provided, convert to departments array
+      user.departments = [department];
+    }
+    
+    // Keep backward compatibility with department field
+    if (department && !departments) {
+      user.department = department;
+    }
+    
     if (password) {
       const saltRounds = 10;
       user.password = await bcrypt.hash(password, saltRounds);
     }
     await user.save();
     const updatedUser = await User.findById(id)
-      .populate('department', 'name description')
+      .populate('departments', 'name description')
+      .populate('department', 'name description') // Keep for backward compatibility
       .select('-password');
     res.status(200).json({ success: true, message: "User updated successfully", data: updatedUser });
   } catch (error) {
@@ -381,12 +417,18 @@ const getUsersByDepartment = async (req, res) => {
     const { departmentId } = req.params;
     const { role, approved } = req.query;
 
-    const filter = { department: departmentId };
+    const filter = { 
+      $or: [
+        { department: departmentId },
+        { departments: departmentId }
+      ]
+    };
     if (role) filter.role = role;
     if (approved !== undefined) filter.approved = approved === 'true';
 
     const users = await User.find(filter)
-      .populate('department', 'name')
+      .populate('departments', 'name')
+      .populate('department', 'name') // Keep for backward compatibility
       .select('-password')
       .sort({ createdAt: -1 });
 
@@ -406,13 +448,13 @@ const getUsersByDepartment = async (req, res) => {
 const updateOwnProfile = async (req, res) => {
   try {
     const id = req.user._id;
-    const { name, email, department, role, number, password, avatar } = req.body;
+    const { name, email, department, departments, role, number, password, avatar } = req.body;
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
     // Only admin can update role or department
-    if (user.role !== 'admin' && (role || department)) {
+    if (user.role !== 'admin' && (role || department || departments)) {
       return res.status(403).json({ message: 'Only admin can update role or department.' });
     }
     if (name) user.name = name;
@@ -422,6 +464,7 @@ const updateOwnProfile = async (req, res) => {
     if (user.role === 'admin') {
       if (role) user.role = role;
       if (department) user.department = department;
+      if (departments) user.departments = departments;
     }
     if (password) {
       const saltRounds = 10;
@@ -429,7 +472,8 @@ const updateOwnProfile = async (req, res) => {
     }
     await user.save();
     const updatedUser = await User.findById(id)
-      .populate('department', 'name description')
+      .populate('departments', 'name description')
+      .populate('department', 'name description') // Keep for backward compatibility
       .select('-password');
     res.status(200).json({ success: true, message: "Profile updated successfully", data: updatedUser });
   } catch (error) {

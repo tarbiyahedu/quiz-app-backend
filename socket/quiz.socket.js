@@ -6,16 +6,74 @@ const User = require("../models/user.model");
 
 let io;
 const participantsByQuiz = {};
+const quizTimers = {}; // Store timers for each quiz
+const quizStatus = {}; // Store real-time status for each quiz
+
+// Helper function to update ranks
+const updateLiveRanks = async (quizId) => {
+  try {
+    const leaderboard = await LiveLeaderboard.find({ 
+      liveQuizId: quizId,
+      isDisqualified: false 
+    })
+      .sort({ score: -1, timeTaken: 1 });
+
+    for (let i = 0; i < leaderboard.length; i++) {
+      leaderboard[i].rank = i + 1;
+      await leaderboard[i].save();
+    }
+  } catch (error) {
+    console.error('Error updating ranks:', error);
+  }
+};
+
+// Timer update interval for all active quizzes
+const startTimerUpdates = () => {
+  return setInterval(() => {
+    Object.keys(quizStatus).forEach(quizId => {
+      const status = quizStatus[quizId];
+      if (status && status.isLive && status.startedAt && status.timeLimit) {
+        const elapsed = Math.floor((new Date().getTime() - new Date(status.startedAt).getTime()) / 1000);
+        const remaining = Math.max(0, (status.timeLimit * 60) - elapsed);
+        
+        // Broadcast timer update to all participants
+        if (io) {
+          io.to(`quiz-${quizId}`).emit('timer-update', {
+            quizId: quizId,
+            remaining: remaining,
+            total: status.timeLimit * 60,
+            startedAt: status.startedAt
+          });
+        }
+        
+        // Auto-end quiz when time runs out
+        if (remaining <= 0 && quizTimers[quizId]) {
+          clearTimeout(quizTimers[quizId]);
+          delete quizTimers[quizId];
+          handleEndQuiz({ quizId });
+        }
+      }
+    });
+  }, 1000); // Update every second
+};
+
+// Start timer updates when socket is initialized
+let timerInterval;
 
 const initializeSocket = (server) => {
   io = require('socket.io')(server, {
     cors: {
-      origin: "https://tarbiyah-live-quiz-app.vercel.app",
-      // origin: "http://localhost:3000",
+      // origin: "https://tarbiyah-live-quiz-app.vercel.app",
+      origin: "http://localhost:3000",
       methods: ["GET", "POST"],
       credentials: true
     }
   });
+
+  // Start timer updates
+  if (!timerInterval) {
+    timerInterval = startTimerUpdates();
+  }
 
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -39,17 +97,45 @@ const initializeSocket = (server) => {
         quiz.startedAt = new Date();
         await quiz.save();
 
+        // Set quiz status in memory
+        quizStatus[quizId] = {
+          isLive: true,
+          startedAt: quiz.startedAt,
+          timeLimit: quiz.timeLimit,
+          currentQuestion: null,
+          participants: participantsByQuiz[quizId] || []
+        };
+
+        // Start quiz timer if timeLimit is set
+        if (quiz.timeLimit && !quizTimers[quizId]) {
+          quizTimers[quizId] = setTimeout(() => {
+            handleEndQuiz({ quizId });
+          }, quiz.timeLimit * 60 * 1000); // Convert minutes to milliseconds
+        }
+
         // Broadcast quiz started
         io.to(`quiz-${quizId}`).emit('quiz-started', {
           quizId: quizId,
-          startedAt: quiz.startedAt
+          startedAt: quiz.startedAt,
+          timeLimit: quiz.timeLimit
         });
 
-        // Update live status for admin
+        // Update live status for all participants
         io.to(`quiz-${quizId}`).emit('live_status', { 
           live: true,
-          quizId: quizId 
+          quizId: quizId,
+          startedAt: quiz.startedAt,
+          timeLimit: quiz.timeLimit
         });
+
+        // Broadcast timer start
+        if (quiz.timeLimit) {
+          io.to(`quiz-${quizId}`).emit('timer-started', {
+            quizId: quizId,
+            timeLimit: quiz.timeLimit,
+            startedAt: quiz.startedAt
+          });
+        }
 
       } catch (error) {
         socket.emit('error', { message: error.message });
@@ -62,18 +148,36 @@ const initializeSocket = (server) => {
         const { quizId } = data;
         const userId = socket.userId;
 
-        // Verify user is quiz creator or admin
-        const quiz = await LiveQuiz.findById(quizId);
-        if (!quiz || (quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
-          socket.emit('error', { message: 'Access denied' });
-          return;
+        // Verify user is quiz creator or admin (unless it's a timer-based end)
+        if (userId) {
+          const quiz = await LiveQuiz.findById(quizId);
+          if (!quiz || (quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
+            socket.emit('error', { message: 'Access denied' });
+            return;
+          }
+        }
+
+        // Clear timer if exists
+        if (quizTimers[quizId]) {
+          clearTimeout(quizTimers[quizId]);
+          delete quizTimers[quizId];
         }
 
         // Update quiz status
-        quiz.status = 'completed';
-        quiz.isLive = false;
-        quiz.endedAt = new Date();
-        await quiz.save();
+        const quiz = await LiveQuiz.findById(quizId);
+        if (quiz) {
+          quiz.status = 'completed';
+          quiz.isLive = false;
+          quiz.endedAt = new Date();
+          await quiz.save();
+        }
+
+        // Update quiz status in memory
+        quizStatus[quizId] = {
+          isLive: false,
+          endedAt: new Date(),
+          participants: participantsByQuiz[quizId] || []
+        };
 
         // Get final leaderboard
         const leaderboard = await LiveLeaderboard.find({ 
@@ -87,14 +191,24 @@ const initializeSocket = (server) => {
         // Broadcast quiz ended with results
         io.to(`quiz-${quizId}`).emit('quiz-ended', {
           quizId: quizId,
-          endedAt: quiz.endedAt,
-          leaderboard: leaderboard
+          endedAt: new Date(),
+          leaderboard: leaderboard,
+          reason: userId ? 'admin_ended' : 'time_expired'
         });
 
-        // Update live status for admin
+        // Update live status for all participants
         io.to(`quiz-${quizId}`).emit('live_status', { 
           live: false,
-          quizId: quizId 
+          quizId: quizId,
+          endedAt: new Date(),
+          reason: userId ? 'admin_ended' : 'time_expired'
+        });
+
+        // Broadcast timer end
+        io.to(`quiz-${quizId}`).emit('timer-ended', {
+          quizId: quizId,
+          endedAt: new Date(),
+          reason: userId ? 'admin_ended' : 'time_expired'
         });
 
       } catch (error) {
@@ -102,15 +216,66 @@ const initializeSocket = (server) => {
       }
     };
 
-    // Join live quiz room
+    // Handle timer status requests
+    socket.on("request-timer-status", async (data) => {
+      try {
+        const { quizId } = data;
+        console.log(`Timer status requested for quiz: ${quizId}`);
+
+        const quiz = await LiveQuiz.findById(quizId);
+        if (!quiz) {
+          socket.emit("error", { message: "Quiz not found" });
+          return;
+        }
+
+        if (!quiz.isLive || !quiz.startedAt) {
+          socket.emit("timer-status", { 
+            remaining: 0, 
+            total: quiz.timeLimit * 60,
+            isLive: false 
+          });
+          return;
+        }
+
+        const now = new Date();
+        const startTime = new Date(quiz.startedAt);
+        const elapsed = Math.floor((now - startTime) / 1000);
+        const remaining = Math.max(0, (quiz.timeLimit * 60) - elapsed);
+
+        console.log(`Timer status for quiz ${quizId}: ${remaining}s remaining`);
+
+        socket.emit("timer-status", {
+          remaining: remaining,
+          total: quiz.timeLimit * 60,
+          isLive: quiz.isLive,
+          startedAt: quiz.startedAt
+        });
+
+      } catch (error) {
+        console.error("Error handling timer status request:", error);
+        socket.emit("error", { message: "Failed to get timer status" });
+      }
+    });
+
+    // Handle quiz join
     socket.on('join-quiz', async (data) => {
       try {
         const { quizId, userId } = data;
         
         // Verify quiz exists and is active
         const quiz = await LiveQuiz.findById(quizId);
-        if (!quiz || (quiz.status !== 'live' && !quiz.isLive)) {
-          socket.emit('error', { message: 'Quiz not found or not live' });
+        if (!quiz) {
+          socket.emit('error', { message: 'Quiz not found' });
+          return;
+        }
+
+        // Check if quiz is live or can be joined
+        if (quiz.status !== 'live' && !quiz.isLive) {
+          socket.emit('quiz-not-live', { 
+            message: 'Quiz is not currently live',
+            status: quiz.status,
+            isLive: quiz.isLive
+          });
           return;
         }
 
@@ -145,14 +310,37 @@ const initializeSocket = (server) => {
         }
 
         // Send current quiz state
+        const currentStatus = quizStatus[quizId] || {
+          isLive: quiz.isLive,
+          startedAt: quiz.startedAt,
+          timeLimit: quiz.timeLimit,
+          currentQuestion: quiz.currentQuestion
+        };
+
         socket.emit('quiz-joined', {
           quizId: quizId,
           quizTitle: quiz.title,
           status: quiz.status,
           currentQuestion: quiz.currentQuestion,
           totalQuestions: quiz.totalQuestions,
-          timeLimit: quiz.timeLimit
+          timeLimit: quiz.timeLimit,
+          isLive: currentStatus.isLive,
+          startedAt: currentStatus.startedAt,
+          participants: participantsByQuiz[quizId] || []
         });
+
+        // Send timer status if quiz is live
+        if (currentStatus.isLive && currentStatus.startedAt && currentStatus.timeLimit) {
+          const elapsed = Math.floor((new Date().getTime() - new Date(currentStatus.startedAt).getTime()) / 1000);
+          const remaining = Math.max(0, (currentStatus.timeLimit * 60) - elapsed);
+          
+          socket.emit('timer-status', {
+            quizId: quizId,
+            remaining: remaining,
+            total: currentStatus.timeLimit * 60,
+            startedAt: currentStatus.startedAt
+          });
+        }
 
         console.log(`User ${user.name} (${user.role}) joined quiz ${quizId}`);
       } catch (error) {
@@ -233,6 +421,16 @@ const initializeSocket = (server) => {
           return;
         }
 
+        // Check if quiz is still live
+        const currentStatus = quizStatus[quizId];
+        if (!currentStatus || !currentStatus.isLive) {
+          socket.emit('quiz-ended', { 
+            message: 'Quiz has ended. Cannot submit answers.',
+            reason: 'time_expired'
+          });
+          return;
+        }
+
         // Check if answer already submitted
         const existingAnswer = await LiveQuizAnswer.findOne({
           userId: userId,
@@ -307,6 +505,40 @@ const initializeSocket = (server) => {
           timestamp: new Date()
         });
 
+      } catch (error) {
+        socket.emit('error', { message: error.message });
+      }
+    });
+
+    // Request quiz status
+    socket.on('request-quiz-status', async (data) => {
+      try {
+        const { quizId } = data;
+        const currentStatus = quizStatus[quizId];
+        
+        if (currentStatus) {
+          socket.emit('quiz-status', {
+            quizId: quizId,
+            isLive: currentStatus.isLive,
+            startedAt: currentStatus.startedAt,
+            endedAt: currentStatus.endedAt,
+            timeLimit: currentStatus.timeLimit,
+            participants: currentStatus.participants || []
+          });
+        } else {
+          // Fallback to database
+          const quiz = await LiveQuiz.findById(quizId);
+          if (quiz) {
+            socket.emit('quiz-status', {
+              quizId: quizId,
+              isLive: quiz.isLive,
+              startedAt: quiz.startedAt,
+              endedAt: quiz.endedAt,
+              timeLimit: quiz.timeLimit,
+              status: quiz.status
+            });
+          }
+        }
       } catch (error) {
         socket.emit('error', { message: error.message });
       }
@@ -483,24 +715,6 @@ const updateLiveLeaderboard = async (quizId, userId) => {
     }
   } catch (error) {
     console.error('Error updating leaderboard:', error);
-  }
-};
-
-// Helper function to update ranks
-const updateLiveRanks = async (quizId) => {
-  try {
-    const leaderboard = await LiveLeaderboard.find({ 
-      liveQuizId: quizId,
-      isDisqualified: false 
-    })
-      .sort({ score: -1, timeTaken: 1 });
-
-    for (let i = 0; i < leaderboard.length; i++) {
-      leaderboard[i].rank = i + 1;
-      await leaderboard[i].save();
-    }
-  } catch (error) {
-    console.error('Error updating ranks:', error);
   }
 };
 

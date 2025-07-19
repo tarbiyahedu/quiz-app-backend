@@ -35,12 +35,19 @@ const userSchema = mongoose.Schema({
     default: "student",
     required: [true, "Please specify user role"]
   },
-  department: {
-    type: mongoose.Schema.Types.ObjectId,
+  departments: {
+    type: [mongoose.Schema.Types.ObjectId],
     ref: "Department",
     required: function() {
       return this.role === "student";
-    }
+    },
+    default: []
+  },
+  // Keep the old department field for backward compatibility
+  department: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Department",
+    required: false
   },
   avatar: {
     type: String,
@@ -66,6 +73,7 @@ const userSchema = mongoose.Schema({
 });
 
 // Index for better query performance
-userSchema.index({ department: 1, role: 1, approved: 1, createdAt: -1 });
+userSchema.index({ departments: 1, role: 1, approved: 1, createdAt: -1 });
+userSchema.index({ department: 1, role: 1, approved: 1, createdAt: -1 }); // Keep old index for backward compatibility
 
 module.exports = mongoose.model("User", userSchema);

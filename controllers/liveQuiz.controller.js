@@ -57,9 +57,14 @@ const getAllLiveQuizzes = async (req, res) => {
     if (department) filter.department = department;
     if (status) filter.status = status;
 
-    // If user is student, only show quizzes from their department
+    // If user is student, show quizzes from all their departments
     if (req.user.role === 'student') {
-      filter.department = req.user.department;
+      if (req.user.departments && req.user.departments.length > 0) {
+        filter.department = { $in: req.user.departments };
+      } else if (req.user.department) {
+        // Fallback to old department field for backward compatibility
+        filter.department = req.user.department;
+      }
     }
 
     const skip = (page - 1) * limit;
@@ -557,43 +562,148 @@ const getAvailableLiveQuizzesForStudent = async (req, res) => {
     const userId = req.user._id;
     const user = await require('../models/user.model').findById(userId);
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
-    if (!user.department) {
-      return res.status(400).json({ success: false, message: "No department assigned to user. Please contact admin or update your profile." });
-    }
+    
     if (user.role !== 'student') {
       return res.status(403).json({ success: false, message: "Only students can access this endpoint." });
     }
-    const departmentId = req.query.department || user.department;
-    let deptId;
-    if (typeof departmentId === 'string') {
-      if (mongoose.Types.ObjectId.isValid(departmentId)) {
-        deptId = new mongoose.Types.ObjectId(departmentId);
-      } else {
-        console.error('Invalid departmentId string for ObjectId conversion:', departmentId);
-        return res.status(400).json({ success: false, message: 'Invalid department ID.' });
-      }
-    } else if (departmentId && departmentId._bsontype === 'ObjectID') {
-      deptId = departmentId;
-    } else {
-      console.error('departmentId is not a string or ObjectId:', departmentId);
-      return res.status(400).json({ success: false, message: 'Invalid department ID.' });
+
+    // Get user's departments
+    let userDepartments = [];
+    if (user.departments && user.departments.length > 0) {
+      userDepartments = user.departments;
+    } else if (user.department) {
+      // Fallback to old department field for backward compatibility
+      userDepartments = [user.department];
     }
-    // Find all live quizzes for department (robust match)
+
+    if (userDepartments.length === 0) {
+      return res.status(400).json({ success: false, message: "No department assigned to user. Please contact admin or update your profile." });
+    }
+
+    // Find all live quizzes for user's departments
     const quizzes = await require('../models/liveQuiz.model').find({
       $and: [
         { $or: [{ status: 'live' }, { isLive: true }] },
-        { department: deptId }
+        { department: { $in: userDepartments } }
       ]
     });
+
     // Find quizzes already completed by the student
     const LiveQuizAnswer = require('../models/liveQuizAnswer.model');
     const completed = await LiveQuizAnswer.find({ userId: userId }).distinct('liveQuizId');
+    
     // Filter out completed quizzes
     const available = quizzes.filter(q => !completed.map(id => id.toString()).includes(q._id.toString()));
+    
     res.status(200).json({ success: true, data: available });
   } catch (err) {
     console.error('Error in getAvailableLiveQuizzesForStudent:', err, err && err.stack ? err.stack : '');
     res.status(500).json({ success: false, message: err && err.message ? err.message : String(err) });
+  }
+};
+
+// GET QUIZ STATISTICS FOR ADMIN
+const getQuizStatistics = async (req, res) => {
+  try {
+    const { status, department, page = 1, limit = 10 } = req.query;
+    
+    const filter = {};
+    if (status) filter.status = status;
+    if (department) filter.department = department;
+
+    const skip = (page - 1) * limit;
+    
+    const quizzes = await LiveQuiz.find(filter)
+      .populate('department', 'name')
+      .populate('createdBy', 'name email')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    // Get statistics for each quiz
+    const quizzesWithStats = await Promise.all(quizzes.map(async (quiz) => {
+      // Get all questions for this quiz
+      const questions = await LiveQuizQuestion.find({ liveQuizId: quiz._id });
+      const questionCount = questions.length;
+      const totalPossibleScore = questions.reduce((sum, q) => sum + q.marks, 0);
+
+      // Get all participants (unique users who answered at least one question)
+      const participants = await LiveQuizAnswer.distinct('userId', { liveQuizId: quiz._id });
+      const participantCount = participants.length;
+
+      // Get all answers for this quiz
+      const answers = await LiveQuizAnswer.find({ liveQuizId: quiz._id })
+        .populate('userId', 'name email')
+        .populate('questionId', 'marks');
+
+      // Calculate average score
+      let totalScore = 0;
+      let totalAnswers = 0;
+      const userScores = {};
+
+      answers.forEach(answer => {
+        const userId = answer.userId._id.toString();
+        if (!userScores[userId]) {
+          userScores[userId] = {
+            totalScore: 0,
+            totalPossibleScore: 0,
+            answers: 0
+          };
+        }
+        userScores[userId].totalScore += answer.score;
+        userScores[userId].totalPossibleScore += answer.questionId.marks;
+        userScores[userId].answers += 1;
+        totalAnswers++;
+      });
+
+      // Calculate average score across all participants
+      const userAverageScores = Object.values(userScores).map(userScore => 
+        userScore.totalPossibleScore > 0 ? (userScore.totalScore / userScore.totalPossibleScore) * 100 : 0
+      );
+      
+      const averageScore = userAverageScores.length > 0 
+        ? Math.round(userAverageScores.reduce((sum, score) => sum + score, 0) / userAverageScores.length)
+        : 0;
+
+      return {
+        _id: quiz._id,
+        title: quiz.title,
+        description: quiz.description,
+        department: quiz.department,
+        createdBy: quiz.createdBy,
+        status: quiz.status,
+        timeLimit: quiz.timeLimit,
+        maxParticipants: quiz.maxParticipants,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime,
+        createdAt: quiz.createdAt,
+        updatedAt: quiz.updatedAt,
+        // Statistics
+        participantCount,
+        questionCount,
+        totalPossibleScore,
+        averageScore,
+        totalAnswers
+      };
+    }));
+
+    const total = await LiveQuiz.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      data: quizzesWithStats,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -608,5 +718,6 @@ module.exports = {
   scheduleLiveQuiz,
   cancelScheduledQuiz,
   publishLiveQuizResults,
-  getAvailableLiveQuizzesForStudent
+  getAvailableLiveQuizzesForStudent,
+  getQuizStatistics
 }; 
