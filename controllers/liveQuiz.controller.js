@@ -59,7 +59,7 @@ const getAllLiveQuizzes = async (req, res) => {
 
     // If user is student, show quizzes from all their departments
     if (req.user.role === 'student') {
-      if (req.user.departments && req.user.departments.length > 0) {
+      if (req.user.departments && Array.isArray(req.user.departments) && req.user.departments.length > 0) {
         filter.department = { $in: req.user.departments };
       } else if (req.user.department) {
         // Fallback to old department field for backward compatibility
@@ -156,7 +156,7 @@ const updateLiveQuiz = async (req, res) => {
     }
 
     // Only creator or admin can update
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can update this quiz."
@@ -207,7 +207,7 @@ const deleteLiveQuiz = async (req, res) => {
     }
 
     // Only creator or admin can delete
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can delete this quiz."
@@ -253,7 +253,7 @@ const startLiveQuiz = async (req, res) => {
     }
 
     // Only creator or admin can start
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can start this quiz."
@@ -330,7 +330,7 @@ const endLiveQuiz = async (req, res) => {
     }
 
     // Only creator or admin can end
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can end this quiz."
@@ -391,7 +391,7 @@ const scheduleLiveQuiz = async (req, res) => {
     }
 
     // Only creator or admin can schedule
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can schedule this quiz."
@@ -475,7 +475,7 @@ const cancelScheduledQuiz = async (req, res) => {
     }
 
     // Only creator or admin can cancel
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can cancel this quiz."
@@ -530,7 +530,7 @@ const publishLiveQuizResults = async (req, res) => {
     }
 
     // Only creator or admin can publish results
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can publish results."

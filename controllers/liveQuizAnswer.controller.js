@@ -55,7 +55,7 @@ const submitLiveQuizAnswer = async (req, res) => {
         isCorrect = question.correctAnswer === answerText;
         break;
       case 'TF':
-        isCorrect = question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
+        isCorrect = question.correctAnswer && answerText && question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
         break;
       case 'Short':
       case 'Long':
@@ -203,7 +203,7 @@ const submitMultipleLiveQuizAnswers = async (req, res) => {
             }
             break;
           case 'TF':
-            isCorrect = question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
+            isCorrect = question.correctAnswer && answerText && question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
             break;
           case 'Short':
           case 'Long':
@@ -296,7 +296,7 @@ const getLiveQuizAnswers = async (req, res) => {
     }
 
     // Check if user has permission (admin or quiz creator)
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -403,7 +403,7 @@ const deleteLiveQuizAnswer = async (req, res) => {
 
     // Check if user has permission
     const quiz = await LiveQuiz.findById(answer.liveQuizId);
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -615,7 +615,7 @@ const getCompletedQuizDetailsForAdmin = async (req, res) => {
     }
 
     // Check if user has permission (admin or quiz creator)
-    if (quiz.createdBy._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy._id && quiz.createdBy._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied"

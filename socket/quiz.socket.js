@@ -86,7 +86,7 @@ const initializeSocket = (server) => {
 
         // Verify user is quiz creator or admin
         const quiz = await LiveQuiz.findById(quizId);
-        if (!quiz || (quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
+        if (!quiz || (quiz.createdBy && quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
           socket.emit('error', { message: 'Access denied' });
           return;
         }
@@ -151,7 +151,7 @@ const initializeSocket = (server) => {
         // Verify user is quiz creator or admin (unless it's a timer-based end)
         if (userId) {
           const quiz = await LiveQuiz.findById(quizId);
-          if (!quiz || (quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
+          if (!quiz || (quiz.createdBy && quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
             socket.emit('error', { message: 'Access denied' });
             return;
           }
@@ -458,7 +458,7 @@ const initializeSocket = (server) => {
             isCorrect = question.correctAnswer === answerText;
             break;
           case 'TF':
-            isCorrect = question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
+            isCorrect = question.correctAnswer && answerText && question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
             break;
           case 'Short':
           case 'Long':
@@ -570,7 +570,7 @@ const initializeSocket = (server) => {
 
         // Verify user is quiz creator or admin
         const quiz = await LiveQuiz.findById(quizId);
-        if (!quiz || (quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
+        if (!quiz || (quiz.createdBy && quiz.createdBy.toString() !== userId && socket.userRole !== 'admin')) {
           socket.emit('error', { message: 'Access denied' });
           return;
         }

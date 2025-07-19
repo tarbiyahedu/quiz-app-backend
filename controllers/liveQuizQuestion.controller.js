@@ -31,7 +31,7 @@ const addLiveQuizQuestion = async (req, res) => {
       });
     }
 
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can add questions."
@@ -148,7 +148,7 @@ const getLiveQuizQuestions = async (req, res) => {
     }
 
     // Check if user has access to this quiz
-    if (req.user.role === 'student' && quiz.department.toString() !== req.user.department.toString()) {
+    if (req.user.role === 'student' && req.user.department && quiz.department && quiz.department.toString() !== req.user.department.toString()) {
       return res.status(403).json({
         success: false,
         message: "Access denied. Quiz not available for your department."
@@ -213,7 +213,7 @@ const updateLiveQuizQuestion = async (req, res) => {
 
     // Check if user has permission
     const quiz = await LiveQuiz.findById(question.liveQuizId);
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can update questions."
@@ -274,7 +274,7 @@ const deleteLiveQuizQuestion = async (req, res) => {
 
     // Check if user has permission
     const quiz = await LiveQuiz.findById(question.liveQuizId);
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can delete questions."

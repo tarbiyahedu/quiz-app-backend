@@ -101,7 +101,7 @@ async function testCorrectQuiz() {
     // Test the API endpoint
     console.log(`\n🧪 Testing API endpoint...`);
     try {
-      const response = await fetch(`https://quiz-app-backend-main.vercel.app/api/live-quiz-answers/completed/${quizId}`, {
+      const response = await fetch(`https://tarbiyah-live-quiz-app.vercel.app/api/live-quiz-answers/completed/${quizId}`, {
         headers: {
           'Authorization': `Bearer ${process.env.TEST_TOKEN || 'test-token'}`,
           'Content-Type': 'application/json'
