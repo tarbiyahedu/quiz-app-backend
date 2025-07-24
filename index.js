@@ -36,8 +36,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        // url: process.env.API_URL || 'http://localhost:5000',
-        url: process.env.API_URL || 'https://quiz-app-backend-main.vercel.app',
+        url: process.env.API_URL || 'http://localhost:5000',
         description: 'Development server'
       }
     ],
@@ -62,8 +61,7 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Middleware
 app.use(cors({
-  // origin: "http://localhost:3000",
-  origin: "https://tarbiyah-live-quiz-app.vercel.app",
+  origin: "http://localhost:3000",
   credentials: true
 }));
 app.use(express.json());
@@ -77,7 +75,7 @@ initializeSocket(server);
 
 // Basic route
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.send("Quiz App Backend is running.");
 });
 
 // API Routes with proper prefixes
@@ -90,8 +88,6 @@ app.use("/api/live-quizzes", liveQuizRouter);
 app.use("/api/live-quiz-questions", liveQuizQuestionRouter);
 app.use("/api/live-quiz-answers", liveQuizAnswerRouter);
 app.use("/api/live-leaderboard", liveLeaderboardRouter);
-
-// Remove assignment quiz system routes
 
 // Upload Routes
 app.use("/api/upload", uploadRouter);
@@ -125,13 +121,12 @@ process.on('uncaughtException', (err) => {
 
 // Start server
 // Remove or comment out the following block:
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
-  console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
-  console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'https://tarbiyah-live-quiz-app.vercel.app'}`);
-  // console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
-});
+// const PORT = process.env.PORT || 5000;
+// server.listen(PORT, () => {
+//   console.log(`🚀 Server listening on port ${PORT}`);
+//   console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
+//   console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
+// });
 
 // Initialize scheduler after database connection
 mongoose.connection.once('open', () => {
