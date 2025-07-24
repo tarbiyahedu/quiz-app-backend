@@ -61,7 +61,8 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Middleware
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: "https://tarbiyah-live-quiz-app.vercel.app",
+  // origin: "http://localhost:3000",
   credentials: true
 }));
 app.use(express.json());
