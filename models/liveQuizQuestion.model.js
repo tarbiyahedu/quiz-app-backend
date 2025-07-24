@@ -23,8 +23,8 @@ const liveQuizQuestionSchema = mongoose.Schema({
   correctAnswer: {
     type: mongoose.Schema.Types.Mixed,
     required: function() {
-      // Only required for MCQ, TF, and Short types
-      return ["MCQ", "TF", "Short"].includes(this.type);
+      // Only required for TF and Short types (NOT MCQ)
+      return ["TF", "Short"].includes(this.type);
     }
   },
   // For fill in the blanks - multiple correct answers

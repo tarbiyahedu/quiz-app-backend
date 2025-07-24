@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { getLiveLeaderboard, adjustLiveScore, disqualifyParticipant } = require("../controllers/liveLeaderboard.controller");
+const { getLiveLeaderboard, adjustLiveScore, disqualifyParticipant, getPublicQuizLeaderboard } = require("../controllers/liveLeaderboard.controller");
 const { authenticateToken, requireAdmin } = require("../middleware/auth");
 
 /**
@@ -112,5 +112,26 @@ router.post("/adjust-score", requireAdmin, adjustLiveScore);
  *         description: Quiz or user not found
  */
 router.post("/disqualify", requireAdmin, disqualifyParticipant);
+
+/**
+ * @swagger
+ * /api/live-leaderboard/quiz/{quizId}/public:
+ *   get:
+ *     summary: Get public leaderboard for a quiz
+ *     tags: [Live Leaderboard]
+ *     parameters:
+ *       - in: path
+ *         name: quizId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the quiz
+ *     responses:
+ *       200:
+ *         description: Leaderboard retrieved successfully
+ *       404:
+ *         description: Quiz not found
+ */
+router.get("/quiz/:quizId/public", getPublicQuizLeaderboard);
 
 module.exports = router; 

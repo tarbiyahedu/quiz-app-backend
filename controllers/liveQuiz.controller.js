@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 // CREATE LIVE QUIZ
 const createLiveQuiz = async (req, res) => {
   try {
-    const { title, department, timeLimit, maxParticipants, description, totalQuestions, mode } = req.body;
+    const { title, department, maxParticipants, description, totalQuestions, mode } = req.body;
 
     // Validation for required fields
     if (!title || !department) {
@@ -19,7 +19,6 @@ const createLiveQuiz = async (req, res) => {
     const newLiveQuiz = new LiveQuiz({
       title,
       department,
-      timeLimit,
       maxParticipants,
       description,
       totalQuestions,
@@ -141,11 +140,36 @@ const getOneLiveQuiz = async (req, res) => {
   }
 };
 
+// GET LIVE QUIZ BY CODE
+const getLiveQuizByCode = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const quiz = await LiveQuiz.findOne({ code: code.toUpperCase() })
+      .populate('department', 'name')
+      .populate('createdBy', 'name email');
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Live quiz not found with this code'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      data: quiz
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // UPDATE LIVE QUIZ
 const updateLiveQuiz = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, department, timeLimit, maxParticipants, status, isPublic, description, totalQuestions, mode } = req.body;
+    const { title, department, maxParticipants, status, isPublic, description, totalQuestions, mode } = req.body;
 
     const quiz = await LiveQuiz.findById(id);
     if (!quiz) {
@@ -166,7 +190,6 @@ const updateLiveQuiz = async (req, res) => {
     // Update fields
     if (title) quiz.title = title;
     if (department) quiz.department = department;
-    if (timeLimit !== undefined) quiz.timeLimit = timeLimit;
     if (maxParticipants !== undefined) quiz.maxParticipants = maxParticipants;
     if (status) quiz.status = status;
     if (isPublic !== undefined) quiz.isPublic = isPublic;
@@ -707,6 +730,18 @@ const getQuizStatistics = async (req, res) => {
   }
 };
 
+// Add a new public endpoint to get all public quizzes
+const getAllPublicLiveQuizzes = async (req, res) => {
+  try {
+    const quizzes = await LiveQuiz.find({ isPublic: true, status: { $in: ['live', 'scheduled'] } })
+      .populate('department', 'name')
+      .populate('createdBy', 'name email');
+    res.status(200).json({ success: true, data: quizzes });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createLiveQuiz,
   getAllLiveQuizzes,
@@ -719,5 +754,7 @@ module.exports = {
   cancelScheduledQuiz,
   publishLiveQuizResults,
   getAvailableLiveQuizzesForStudent,
-  getQuizStatistics
+  getQuizStatistics,
+  getLiveQuizByCode,
+  getAllPublicLiveQuizzes
 }; 

@@ -61,8 +61,8 @@ const addLiveQuizQuestion = async (req, res) => {
         if (!options || options.length < 2) {
           validationError = "MCQ questions must have at least 2 options";
         }
-        if (!correctAnswer) {
-          validationError = "MCQ questions must have a correct answer";
+        if (!correctAnswers || !Array.isArray(correctAnswers) || correctAnswers.length === 0) {
+          validationError = "MCQ questions must have at least one correct answer (use checkboxes for multiple)";
         }
         break;
       case 'TF':
@@ -104,8 +104,8 @@ const addLiveQuizQuestion = async (req, res) => {
       type,
       questionText,
       options,
-      correctAnswer,
-      correctAnswers,
+      correctAnswer: type === 'MCQ' ? undefined : correctAnswer,
+      correctAnswers: type === 'MCQ' ? correctAnswers : correctAnswers,
       matchingPairs,
       correctSequence,
       marks,
@@ -232,8 +232,13 @@ const updateLiveQuizQuestion = async (req, res) => {
     if (type) question.type = type;
     if (questionText) question.questionText = questionText;
     if (options) question.options = options;
-    if (correctAnswer !== undefined) question.correctAnswer = correctAnswer;
-    if (correctAnswers !== undefined) question.correctAnswers = correctAnswers;
+    if (type === 'MCQ') {
+      question.correctAnswer = undefined;
+      if (correctAnswers !== undefined) question.correctAnswers = correctAnswers;
+    } else {
+      if (correctAnswer !== undefined) question.correctAnswer = correctAnswer;
+      if (correctAnswers !== undefined) question.correctAnswers = correctAnswers;
+    }
     if (matchingPairs !== undefined) question.matchingPairs = matchingPairs;
     if (correctSequence !== undefined) question.correctSequence = correctSequence;
     if (marks) question.marks = marks;

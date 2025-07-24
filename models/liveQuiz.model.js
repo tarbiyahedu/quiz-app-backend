@@ -42,10 +42,6 @@ const liveQuizSchema = mongoose.Schema({
       default: 0
     }
   }],
-  timeLimit: {
-    type: Number, // in minutes
-    default: 30
-  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -83,9 +79,25 @@ const liveQuizSchema = mongoose.Schema({
     type: String,
     enum: ["live", "scheduled"],
     default: "live"
+  },
+  code: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    default: null
   }
 }, {
   timestamps: true
+});
+
+// Add pre-save middleware to auto-generate code if not set
+liveQuizSchema.pre('save', function(next) {
+  if (!this.code) {
+    // Generate a 6-character alphanumeric code
+    this.code = Math.random().toString(36).substr(2, 6).toUpperCase();
+  }
+  next();
 });
 
 // Index for better query performance

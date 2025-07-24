@@ -1,6 +1,6 @@
 # Quiz App - Express.js Backend
 
-A comprehensive quiz application backend built with Express.js, featuring live quizzes, assignment quizzes, user management, and real-time features powered by Socket.IO.
+A comprehensive quiz application backend built with Express.js, featuring live quizzes, user management, and real-time features powered by Socket.IO.
 
 ## 🚀 Features
 
@@ -17,14 +17,6 @@ A comprehensive quiz application backend built with Express.js, featuring live q
 - **Question Broadcasting** - Admins can broadcast questions to all participants
 - **Answer Submission** - Real-time answer submission with scoring
 - **Participant Management** - Join/leave rooms, disqualification, score adjustment
-
-### Assignment Quiz System
-- **Flexible Assignments** - Create assignments with deadlines and multiple attempts
-- **Question Management** - Add, edit, delete questions with various types
-- **Answer Review** - Manual review and scoring for text-based answers
-- **Late Submission** - Configurable late submission with penalties
-- **Attempt Tracking** - Multiple attempts with individual scoring
-- **Assignment Leaderboard** - Comprehensive leaderboard with attempt history
 
 ### User & Department Management
 - **User Profiles** - Complete user profiles with avatars and department association
@@ -191,31 +183,6 @@ Authorization: Bearer <your-jwt-token>
 - `POST /live-leaderboard/adjust-score` - Adjust participant score (Admin only)
 - `POST /live-leaderboard/disqualify` - Disqualify participant (Admin only)
 
-#### Assignments
-- `POST /assignments` - Create assignment (Admin only)
-- `GET /assignments` - Get all assignments
-- `GET /assignments/:assignmentId` - Get assignment by ID
-- `PUT /assignments/:assignmentId` - Update assignment (Admin only)
-- `DELETE /assignments/:assignmentId` - Delete assignment (Admin only)
-
-#### Assignment Questions
-- `POST /assignment-questions/:assignmentId` - Add question to assignment (Admin only)
-- `GET /assignment-questions/:assignmentId` - Get questions for assignment
-- `PUT /assignment-questions/:questionId` - Update question (Admin only)
-- `DELETE /assignment-questions/:questionId` - Delete question (Admin only)
-
-#### Assignment Answers
-- `POST /assignment-answers/submit` - Submit answer for assignment
-- `GET /assignment-answers/:assignmentId` - Get answers for assignment (Admin only)
-- `PUT /assignment-answers/:answerId` - Update answer (Admin only)
-- `DELETE /assignment-answers/:answerId` - Delete answer (Admin only)
-
-#### Assignment Leaderboard
-- `GET /assignment-leaderboard/:assignmentId` - Get assignment leaderboard
-- `POST /assignment-leaderboard/adjust-score` - Adjust participant score (Admin only)
-- `POST /assignment-leaderboard/disqualify` - Disqualify participant (Admin only)
-- `GET /assignment-leaderboard/:assignmentId/user/:userId/attempts` - Get user attempts
-
 #### Items
 - `POST /items` - Create item (Admin only)
 - `GET /items` - Get all items
@@ -266,12 +233,6 @@ Authorization: Bearer <your-jwt-token>
 - LiveQuizQuestion: Questions with various types
 - LiveQuizAnswer: User answers and scoring
 - LiveLeaderboard: Real-time rankings
-
-### Assignment Models
-- AssignmentQuiz: Assignment configuration
-- AssignmentQuestion: Questions for assignments
-- AssignmentAnswer: User answers with attempts
-- AssignmentLeaderboard: Assignment rankings
 
 ### Item Model
 - Basic item information
@@ -334,8 +295,6 @@ For support and questions:
 
 - **v1.0.0** - Initial release with complete quiz system
 - Live quiz functionality with Socket.IO
-- Assignment quiz system
-- User and department management
 - Comprehensive API documentation
 
 ---

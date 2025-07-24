@@ -4,7 +4,26 @@ const liveQuizAnswerSchema = mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
-    required: [true, "User ID is required"]
+    required: false // Not required for guests
+  },
+  isGuest: {
+    type: Boolean,
+    default: false
+  },
+  guestName: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  guestEmail: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  guestMobile: {
+    type: String,
+    trim: true,
+    default: null
   },
   liveQuizId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -50,7 +69,16 @@ const liveQuizAnswerSchema = mongoose.Schema({
     type: String,
     trim: true,
     default: ""
-  }
+  },
+  auditLogs: [
+    {
+      adminId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      timestamp: { type: Date, default: Date.now },
+      fieldsChanged: [String],
+      oldValue: mongoose.Schema.Types.Mixed,
+      newValue: mongoose.Schema.Types.Mixed
+    }
+  ]
 }, {
   timestamps: true
 });

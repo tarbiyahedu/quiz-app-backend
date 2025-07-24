@@ -13,7 +13,9 @@ const {
   getAvailableLiveQuizzesForStudent,
   scheduleLiveQuiz,
   cancelScheduledQuiz,
-  getQuizStatistics
+  getQuizStatistics,
+  getLiveQuizByCode,
+  getAllPublicLiveQuizzes
 } = require("../controllers/liveQuiz.controller");
 
 /**
@@ -40,10 +42,6 @@ const {
  *               department:
  *                 type: string
  *                 description: Department ID
- *               timeLimit:
- *                 type: number
- *                 description: Time limit in minutes
- *                 default: 30
  *               maxParticipants:
  *                 type: number
  *                 description: Maximum number of participants
@@ -132,8 +130,6 @@ router.get("/", verifyJWT, getAllLiveQuizzes);
  *               status:
  *                 type: string
  *                 enum: [draft, active, ended]
- *               timeLimit:
- *                 type: number
  *               maxParticipants:
  *                 type: number
  *     responses:
@@ -170,6 +166,10 @@ router.get("/available",
 
 // Admin: Get quiz statistics with participant counts and scores
 router.get("/statistics", verifyJWT, requireAdmin, getQuizStatistics);
+
+router.get("/code/:code", getLiveQuizByCode);
+
+router.get("/public", getAllPublicLiveQuizzes);
 
 router.get("/:id", verifyJWT, getOneLiveQuiz);
 

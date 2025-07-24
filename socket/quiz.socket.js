@@ -97,6 +97,27 @@ const initializeSocket = (server) => {
         quiz.startedAt = new Date();
         await quiz.save();
 
+        // Emit global event for all clients (not just the quiz room)
+        io.emit('quiz-live', {
+          quizId: quizId,
+          title: quiz.title,
+          department: quiz.department,
+          startedAt: quiz.startedAt,
+          timeLimit: quiz.timeLimit,
+          // Add other quiz fields as needed
+        });
+
+        // After quiz goes live and is saved in handleStartQuiz:
+        io.to(`department-${quiz.department}`).emit('quiz-live', {
+          quizId: quiz._id,
+          title: quiz.title,
+          department: quiz.department, // should be department _id
+          startedAt: quiz.startedAt,
+          timeLimit: quiz.timeLimit,
+          // ...other fields as needed
+        });
+        console.log("[Socket] Emitted quiz-live to department room:", quiz.department);
+
         // Set quiz status in memory
         quizStatus[quizId] = {
           isLive: true,
@@ -170,6 +191,11 @@ const initializeSocket = (server) => {
           quiz.isLive = false;
           quiz.endedAt = new Date();
           await quiz.save();
+
+          // Emit global event for all clients (not just the quiz room)
+          io.emit('quiz-ended', {
+            quizId: quizId
+          });
         }
 
         // Update quiz status in memory
@@ -657,6 +683,12 @@ const initializeSocket = (server) => {
         });
       }
       console.log('User disconnected:', socket.id);
+    });
+
+    // Add this inside io.on('connection', (socket) => { ... })
+    socket.on('join-department', ({ departmentId }) => {
+      socket.join(`department-${departmentId}`);
+      console.log("[Socket] User joined department room:", departmentId);
     });
   });
 

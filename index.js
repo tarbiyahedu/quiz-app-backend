@@ -17,13 +17,9 @@ const userRouter = require("./routes/user.route");
 const itemRouter = require("./routes/item.route");
 const departmentRouter = require("./routes/department.route");
 const liveQuizRouter = require("./routes/liveQuiz.route");
-const assignmentRouter = require("./routes/assignment.route");
 const liveQuizQuestionRouter = require("./routes/liveQuizQuestion.route");
 const liveQuizAnswerRouter = require("./routes/liveQuizAnswer.route");
 const liveLeaderboardRouter = require("./routes/liveLeaderboard.route");
-const assignmentQuestionRouter = require("./routes/assignmentQuestion.route");
-const assignmentAnswerRouter = require("./routes/assignmentAnswer.route");
-const assignmentLeaderboardRouter = require("./routes/assignmentLeaderboard.route");
 const uploadRouter = require("./routes/upload.route");
 
 // Swagger documentation setup
@@ -95,11 +91,7 @@ app.use("/api/live-quiz-questions", liveQuizQuestionRouter);
 app.use("/api/live-quiz-answers", liveQuizAnswerRouter);
 app.use("/api/live-leaderboard", liveLeaderboardRouter);
 
-// Assignment Quiz System Routes
-app.use("/api/assignments", assignmentRouter);
-app.use("/api/assignment-questions", assignmentQuestionRouter);
-app.use("/api/assignment-answers", assignmentAnswerRouter);
-app.use("/api/assignment-leaderboard", assignmentLeaderboardRouter);
+// Remove assignment quiz system routes
 
 // Upload Routes
 app.use("/api/upload", uploadRouter);

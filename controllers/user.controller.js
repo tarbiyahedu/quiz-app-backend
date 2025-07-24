@@ -89,9 +89,15 @@ const getCurrentUser = async (req, res) => {
       .populate('department', 'name description') // Keep for backward compatibility
       .select('-password');
 
+    // Add isApproved property for frontend compatibility
+    const userObj = user ? user.toObject() : null;
+    if (userObj) {
+      userObj.isApproved = userObj.approved;
+    }
+
     res.status(200).json({
       success: true,
-      data: user
+      data: userObj
     });
   } catch (error) {
     res.status(500).json({
