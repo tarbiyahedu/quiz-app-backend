@@ -13,6 +13,9 @@ const {
   submitMultipleLiveQuizAnswers
 } = require("../controllers/liveQuizAnswer.controller");
 
+// Public route for guest submissions
+router.post("/submit-multiple-guest", submitMultipleLiveQuizAnswers);
+
 router.use(verifyJWT);
 
 /**

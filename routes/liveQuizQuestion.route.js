@@ -3,6 +3,9 @@ const router = express.Router();
 const { verifyJWT, requireAdmin } = require("../middleware/auth");
 const { addLiveQuizQuestion, getLiveQuizQuestions, updateLiveQuizQuestion, deleteLiveQuizQuestion } = require("../controllers/liveQuizQuestion.controller");
 
+// Public route for getting questions (for guest users)
+router.get('/public/:quizId', getLiveQuizQuestions);
+
 router.use(verifyJWT);
 
 /**

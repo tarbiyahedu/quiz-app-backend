@@ -15,7 +15,8 @@ const {
   cancelScheduledQuiz,
   getQuizStatistics,
   getLiveQuizByCode,
-  getAllPublicLiveQuizzes
+  getAllPublicLiveQuizzes,
+  getPublicLiveQuiz
 } = require("../controllers/liveQuiz.controller");
 
 /**
@@ -170,6 +171,9 @@ router.get("/statistics", verifyJWT, requireAdmin, getQuizStatistics);
 router.get("/code/:code", getLiveQuizByCode);
 
 router.get("/public", getAllPublicLiveQuizzes);
+
+// Public route for accessing quiz details (for guest users)
+router.get("/public/:id", getPublicLiveQuiz);
 
 router.get("/:id", verifyJWT, getOneLiveQuiz);
 

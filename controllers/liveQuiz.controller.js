@@ -112,7 +112,7 @@ const getOneLiveQuiz = async (req, res) => {
     }
 
     // For students, only allow access to live quizzes
-    if (req.user.role === 'student') {
+    if (req.user && req.user.role === 'student') {
       if (quiz.status !== 'live' && !quiz.isLive) {
         return res.status(403).json({
           success: false,
@@ -126,6 +126,43 @@ const getOneLiveQuiz = async (req, res) => {
       //     message: "Access denied. Quiz not available for your department."
       //   });
       // }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: quiz
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// GET PUBLIC LIVE QUIZ (for guest users)
+const getPublicLiveQuiz = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const quiz = await LiveQuiz.findById(id)
+      .populate('department', 'name')
+      .populate('createdBy', 'name email');
+
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: "Live quiz not found"
+      });
+    }
+
+    // For public access, allow access to live quizzes or quizzes marked as public
+    // Temporarily allow access to all quizzes for testing
+    if (!quiz.isPublic && !quiz.isLive && quiz.status !== 'live') {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. This quiz is not available for public access."
+      });
     }
 
     res.status(200).json({
@@ -756,5 +793,6 @@ module.exports = {
   getAvailableLiveQuizzesForStudent,
   getQuizStatistics,
   getLiveQuizByCode,
-  getAllPublicLiveQuizzes
+  getAllPublicLiveQuizzes,
+  getPublicLiveQuiz
 }; 
