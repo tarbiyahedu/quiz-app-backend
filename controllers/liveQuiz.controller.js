@@ -57,7 +57,7 @@ const getAllLiveQuizzes = async (req, res) => {
     if (status) filter.status = status;
 
     // If user is student, show quizzes from all their departments
-    if (req.user.role === 'student') {
+    if (req.user && req.user.role === 'student') {
       if (req.user.departments && Array.isArray(req.user.departments) && req.user.departments.length > 0) {
         filter.department = { $in: req.user.departments };
       } else if (req.user.department) {

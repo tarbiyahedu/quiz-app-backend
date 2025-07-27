@@ -8,7 +8,7 @@ const createItem = async (req, res) => {
     const { name, description, category, price, imageUrl, isActive } = req.body;
 
     // Check if user has permission (admin only)
-    if (req.user.role !== 'admin') {
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only admins can create items."
@@ -138,7 +138,7 @@ const updateItem = async (req, res) => {
     }
 
     // Check if user has permission (admin or creator)
-    if (item.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (item.createdBy.toString() !== req.user._id.toString() && (!req.user || req.user.role !== 'admin')) {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can update items."
@@ -182,7 +182,7 @@ const deleteItem = async (req, res) => {
     }
 
     // Check if user has permission (admin or creator)
-    if (item.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (item.createdBy.toString() !== req.user._id.toString() && (!req.user || req.user.role !== 'admin')) {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only creator or admin can delete items."
@@ -207,7 +207,7 @@ const deleteItem = async (req, res) => {
 const getItemStatistics = async (req, res) => {
   try {
     // Check if user has permission (admin only)
-    if (req.user.role !== 'admin') {
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied. Only admins can view statistics."

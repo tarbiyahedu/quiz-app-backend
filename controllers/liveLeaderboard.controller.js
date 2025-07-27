@@ -18,7 +18,7 @@ const getLiveLeaderboard = async (req, res) => {
     }
 
     // Check if user has access
-    if (req.user.role === 'student' && req.user.department && quiz.department && quiz.department.toString() !== req.user.department.toString()) {
+    if (req.user && req.user.role === 'student' && req.user.department && quiz.department && quiz.department.toString() !== req.user.department.toString()) {
       return res.status(403).json({
         success: false,
         message: "Access denied. Quiz not available for your department."

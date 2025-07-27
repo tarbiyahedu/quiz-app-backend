@@ -388,7 +388,7 @@ const updateLiveQuizAnswer = async (req, res) => {
 
     // Check if user has permission
     const quiz = await LiveQuiz.findById(answer.liveQuizId);
-    if (quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (quiz.createdBy && quiz.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: "Access denied"

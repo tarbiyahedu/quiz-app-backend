@@ -318,7 +318,7 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
     // Only admin can update role or department
-    if (req.user.role !== 'admin' && (role || department || departments)) {
+    if (!req.user || req.user.role !== 'admin' && (role || department || departments)) {
       return res.status(403).json({ message: 'Only admin can update role or department.' });
     }
     if (name) user.name = name;
@@ -460,14 +460,14 @@ const updateOwnProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
     // Only admin can update role or department
-    if (user.role !== 'admin' && (role || department || departments)) {
+    if (!user || user.role !== 'admin' && (role || department || departments)) {
       return res.status(403).json({ message: 'Only admin can update role or department.' });
     }
     if (name) user.name = name;
     if (email) user.email = email;
     if (number) user.number = number;
     if (avatar) user.avatar = avatar;
-    if (user.role === 'admin') {
+    if (user && user.role === 'admin') {
       if (role) user.role = role;
       if (department) user.department = department;
       if (departments) user.departments = departments;
