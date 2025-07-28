@@ -147,8 +147,8 @@ const getLiveQuizQuestions = async (req, res) => {
       });
     }
 
-    // Check if user has access to this quiz
-    if (req.user.role === 'student' && req.user.department && quiz.department && quiz.department.toString() !== req.user.department.toString()) {
+    // Check if user has access to this quiz (only for authenticated users)
+    if (req.user && req.user.role === 'student' && req.user.department && quiz.department && quiz.department.toString() !== req.user.department.toString()) {
       return res.status(403).json({
         success: false,
         message: "Access denied. Quiz not available for your department."
@@ -164,7 +164,7 @@ const getLiveQuizQuestions = async (req, res) => {
       .sort({ order: 1 });
 
     // If student, don't send correct answers for active quizzes
-    if (req.user.role === 'student' && quiz.status === 'active') {
+    if (req.user && req.user.role === 'student' && quiz.status === 'active') {
       questions.forEach(question => {
         delete question.correctAnswer;
       });
