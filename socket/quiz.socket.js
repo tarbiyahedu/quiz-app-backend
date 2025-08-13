@@ -4,6 +4,14 @@ const LiveQuizAnswer = require("../models/liveQuizAnswer.model");
 const LiveLeaderboard = require("../models/liveLeaderboard.model");
 const User = require("../models/user.model");
 
+// Helper function to compare arrays
+function arraysEqual(a, b) {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((val, idx) => val === sortedB[idx]);
+}
+
 let io;
 const participantsByQuiz = {};
 const quizTimers = {}; // Store timers for each quiz
@@ -75,6 +83,56 @@ const initializeSocket = (server) => {
   }
 
   io.on('connection', (socket) => {
+    // New event: joinPublicQuiz for updating live participants with guest name
+    socket.on('joinPublicQuiz', async ({ quizId, guestName }) => {
+      if (!participantsByQuiz[quizId]) participantsByQuiz[quizId] = [];
+      participantsByQuiz[quizId].push({ name: `Guest ${guestName}`, isGuest: true });
+      socket.join(`quiz-${quizId}`);
+      io.to(`quiz-${quizId}`).emit('participant-update', {
+        quizId,
+        participants: participantsByQuiz[quizId]
+      });
+    });
+    // Guest join public live quiz
+    socket.on('guest-join-quiz', async (data) => {
+      try {
+        const { quizId, guestId, name } = data;
+        const quiz = await LiveQuiz.findById(quizId);
+        if (!quiz || !quiz.isPublic || !quiz.isLive) {
+          socket.emit('error', { message: 'Quiz is not available for guests.' });
+          return;
+        }
+        // Add guest to participants
+        if (!participantsByQuiz[quizId]) participantsByQuiz[quizId] = [];
+        participantsByQuiz[quizId].push({ userId: guestId, name, isGuest: true });
+        socket.join(`quiz-${quizId}`);
+        // Broadcast guest joined
+        io.to(`quiz-${quizId}`).emit('participant-update', {
+          quizId,
+          participants: participantsByQuiz[quizId]
+        });
+      } catch (error) {
+        socket.emit('error', { message: error.message });
+      }
+    });
+
+    // Guest leave public live quiz
+    socket.on('guest-leave-quiz', async (data) => {
+      try {
+        const { quizId, guestId } = data;
+        if (participantsByQuiz[quizId]) {
+          participantsByQuiz[quizId] = participantsByQuiz[quizId].filter(p => p.userId !== guestId);
+          // Broadcast guest left
+          io.to(`quiz-${quizId}`).emit('participant-update', {
+            quizId,
+            participants: participantsByQuiz[quizId]
+          });
+        }
+        socket.leave(`quiz-${quizId}`);
+      } catch (error) {
+        socket.emit('error', { message: error.message });
+      }
+    });
     console.log('User connected:', socket.id);
 
     // Helper function to handle quiz start
@@ -96,26 +154,31 @@ const initializeSocket = (server) => {
         quiz.startedAt = new Date();
         await quiz.save();
 
+
         // Emit global event for all clients (not just the quiz room)
         io.emit('quiz-live', {
           quizId: quizId,
           title: quiz.title,
-          department: quiz.department,
+          departments: quiz.departments,
           startedAt: quiz.startedAt,
           timeLimit: quiz.timeLimit,
           // Add other quiz fields as needed
         });
 
-        // After quiz goes live and is saved in handleStartQuiz:
-        io.to(`department-${quiz.department}`).emit('quiz-live', {
-          quizId: quiz._id,
-          title: quiz.title,
-          department: quiz.department, // should be department _id
-          startedAt: quiz.startedAt,
-          timeLimit: quiz.timeLimit,
-          // ...other fields as needed
-        });
-        console.log("[Socket] Emitted quiz-live to department room:", quiz.department);
+        // Emit to all selected department rooms
+        if (Array.isArray(quiz.departments)) {
+          quiz.departments.forEach(depId => {
+            io.to(`department-${depId}`).emit('quiz-live', {
+              quizId: quiz._id,
+              title: quiz.title,
+              departments: quiz.departments,
+              startedAt: quiz.startedAt,
+              timeLimit: quiz.timeLimit,
+              // ...other fields as needed
+            });
+            console.log("[Socket] Emitted quiz-live to department room:", depId);
+          });
+        }
 
         // Set quiz status in memory
         quizStatus[quizId] = {
@@ -479,9 +542,37 @@ const initializeSocket = (server) => {
         let score = 0;
 
         switch (question.type) {
-          case 'MCQ':
-            isCorrect = question.correctAnswer === answerText;
+          case 'MCQ': {
+            // Normalize correct answers - prioritize correctAnswers array for MCQ
+            let correctAnswers = [];
+            if (Array.isArray(question.correctAnswers) && question.correctAnswers.length > 0) {
+              correctAnswers = question.correctAnswers;
+            } else if (question.correctAnswer) {
+              correctAnswers = [question.correctAnswer];
+            }
+            
+            // Normalize user answers
+            let userAnswers = [];
+            if (Array.isArray(answerText)) {
+              userAnswers = answerText.filter(ans => ans && ans.trim() !== '');
+            } else if (answerText && typeof answerText === 'string' && answerText.trim() !== '') {
+              userAnswers = [answerText.trim()];
+            }
+            
+            // Check if it's multiple choice (more than one correct answer)
+            const isMultiple = correctAnswers.length > 1;
+            
+            if (isMultiple) {
+              // For multiple correct answers, use array comparison
+              isCorrect = arraysEqual(userAnswers, correctAnswers);
+            } else {
+              // For single correct answer, use string comparison
+              isCorrect = userAnswers.length === 1 && 
+                         correctAnswers.length === 1 && 
+                         userAnswers[0] === correctAnswers[0];
+            }
             break;
+          }
           case 'TF':
             isCorrect = question.correctAnswer && answerText && question.correctAnswer.toString().toLowerCase() === answerText.toString().toLowerCase();
             break;

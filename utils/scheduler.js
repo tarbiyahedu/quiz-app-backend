@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const LiveQuiz = require('../models/liveQuiz.model');
+const { getIO } = require("../socket/quiz.socket");
 
 class QuizScheduler {
   constructor() {
@@ -12,63 +13,65 @@ class QuizScheduler {
   async initializeScheduler() {
     try {
       console.log('Initializing quiz scheduler...');
-      
+
       // Load all scheduled quizzes from database
-      const scheduledQuizzes = await LiveQuiz.find({ 
+      const futureQuizzes = await LiveQuiz.find({
         status: 'scheduled',
         liveStartAt: { $gt: new Date() }
       });
+      const pastQuizzes = await LiveQuiz.find({
+        status: 'scheduled',
+        liveStartAt: { $lte: new Date() }
+      });
 
-      scheduledQuizzes.forEach(quiz => {
+      futureQuizzes.forEach(quiz => {
+        this.scheduleQuiz(quiz);
+      });
+      pastQuizzes.forEach(quiz => {
         this.scheduleQuiz(quiz);
       });
 
-      console.log(`Loaded ${scheduledQuizzes.length} scheduled quizzes`);
+      console.log(`Loaded ${futureQuizzes.length} future and ${pastQuizzes.length} past scheduled quizzes`);
     } catch (error) {
       console.error('Error initializing scheduler:', error);
     }
   }
 
-  // Schedule a quiz to start and end automatically
+  // Schedule a quiz to start and end automatically (one-time jobs)
   scheduleQuiz(quiz) {
     const quizId = quiz._id.toString();
-    
-    // Cancel existing jobs for this quiz
     this.cancelQuizJobs(quizId);
 
     const startTime = new Date(quiz.liveStartAt);
     const endTime = new Date(quiz.liveEndAt);
     const now = new Date();
 
-    // Only schedule if start time is in the future
+    // If start time has passed but quiz is still scheduled, start it immediately
     if (startTime <= now) {
-      console.log(`Quiz ${quizId} start time has passed, skipping schedule`);
+      console.log(`Quiz ${quizId} start time has passed, activating immediately.`);
+      this.startQuiz(quizId);
+      // Schedule end job only
+      const endDelay = endTime.getTime() - now.getTime();
+      const endJob = setTimeout(async () => {
+        await this.endQuiz(quizId);
+      }, Math.max(0, endDelay));
+      this.jobs.set(quizId, { startJob: null, endJob });
       return;
     }
 
-    // Schedule start job
-    const startCronExpression = this.dateToCron(startTime);
-    const startJob = cron.schedule(startCronExpression, async () => {
+    // Schedule start job using setTimeout
+    const startDelay = startTime.getTime() - now.getTime();
+    const startJob = setTimeout(async () => {
       await this.startQuiz(quizId);
-    }, {
-      scheduled: false
-    });
+    }, startDelay);
 
-    // Schedule end job
-    const endCronExpression = this.dateToCron(endTime);
-    const endJob = cron.schedule(endCronExpression, async () => {
+    // Schedule end job using setTimeout
+    const endDelay = endTime.getTime() - now.getTime();
+    const endJob = setTimeout(async () => {
       await this.endQuiz(quizId);
-    }, {
-      scheduled: false
-    });
+    }, endDelay);
 
-    // Store jobs
     this.jobs.set(quizId, { startJob, endJob });
-
-    // Start the jobs
-    startJob.start();
-    endJob.start();
-
     console.log(`Scheduled quiz ${quizId} to start at ${startTime} and end at ${endTime}`);
   }
 
@@ -76,8 +79,8 @@ class QuizScheduler {
   cancelQuizJobs(quizId) {
     const existingJobs = this.jobs.get(quizId);
     if (existingJobs) {
-      existingJobs.startJob.stop();
-      existingJobs.endJob.stop();
+      clearTimeout(existingJobs.startJob);
+      clearTimeout(existingJobs.endJob);
       this.jobs.delete(quizId);
       console.log(`Cancelled scheduled jobs for quiz ${quizId}`);
     }
@@ -118,6 +121,11 @@ class QuizScheduler {
 
       await quiz.save();
       console.log(`Quiz ${quizId} started automatically at ${now}`);
+      // Emit socket event to notify clients
+      const io = getIO();
+      if (io) {
+        io.to(`quiz-${quizId}`).emit('live_status', { live: true, quizId });
+      }
     } catch (error) {
       console.error(`Error starting quiz ${quizId}:`, error);
     }

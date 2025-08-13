@@ -1,7 +1,11 @@
+
 const express = require("express");
 const router = express.Router();
 const { getLiveLeaderboard, adjustLiveScore, disqualifyParticipant, getPublicQuizLeaderboard } = require("../controllers/liveLeaderboard.controller");
+const liveLeaderboardController = require('../controllers/liveLeaderboard.controller');
 const { authenticateToken, requireAdmin } = require("../middleware/auth");
+// Get completed public quizzes for leaderboard
+router.get('/public-completed', liveLeaderboardController.getCompletedPublicQuizzes);
 
 /**
  * @swagger
@@ -133,5 +137,6 @@ router.post("/disqualify", requireAdmin, disqualifyParticipant);
  *         description: Quiz not found
  */
 router.get("/quiz/:quizId/public", getPublicQuizLeaderboard);
+router.get('/:quizId/export-pdf', liveLeaderboardController.exportResultsPDF);
 
 module.exports = router; 

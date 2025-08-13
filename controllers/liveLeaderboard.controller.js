@@ -1,3 +1,117 @@
+// GET COMPLETED PUBLIC QUIZZES FOR LEADERBOARD
+const getCompletedPublicQuizzes = async (req, res) => {
+  try {
+    console.log('[Backend] GET /api/live-leaderboard/public-completed called');
+    console.log('[Backend] Request query:', req.query);
+    const quizzes = await LiveQuiz.find({
+      isPublic: true,
+      status: 'completed'
+    }).select('_id title description endTime');
+    console.log(`[Backend] Completed public quizzes count: ${quizzes.length}`);
+    if (quizzes.length > 0) {
+      quizzes.forEach((quiz, idx) => {
+        console.log(`[Backend] Quiz ${idx + 1}:`, quiz);
+      });
+    } else {
+      console.log('[Backend] No completed public quizzes found.');
+    }
+    res.status(200).json({ success: true, data: quizzes });
+  } catch (err) {
+    console.error('[Backend] Error fetching completed public quizzes:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch public completed quizzes' });
+  }
+};
+// Puppeteer-based PDF export for quiz results
+const puppeteer = require('puppeteer');
+const exportResultsPDF = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const quiz = await LiveQuiz.findById(quizId);
+    if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
+    // Get leaderboard data
+    let leaderboard = [];
+    try {
+      // Call getPublicQuizLeaderboard and extract leaderboard array
+      const mockReq = { params: { quizId }, query: {} };
+      let leaderboardData;
+      await getPublicQuizLeaderboard(mockReq, {
+        status: () => ({
+          json: (d) => {
+            leaderboardData = d;
+            return d;
+          }
+        })
+      });
+      leaderboard = leaderboardData?.data?.leaderboard || [];
+    } catch (err) {
+      leaderboard = [];
+    }
+
+    // Build HTML template for results
+    const html = `
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Quiz Results PDF</title>
+        <style>
+          body { font-family: Arial, sans-serif; background: #f8f9fa; color: #222; }
+          h1 { color: #0E2647; text-align: center; }
+          table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+          th { background: #0E2647; color: #fff; }
+          tr:nth-child(even) { background: #f2f2f2; }
+        </style>
+      </head>
+      <body>
+        <h1>Quiz Results: ${quiz.title}</h1>
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Score</th>
+              <th>Correct</th>
+              <th>Total</th>
+              <th>Time (s)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leaderboard.map(p => `
+              <tr>
+                <td>${p.rank}</td>
+                <td>${p.name}</td>
+                <td>${p.type}</td>
+                <td>${p.score}</td>
+                <td>${p.correctAnswers}</td>
+                <td>${p.totalQuestions}</td>
+                <td>${p.timeTaken}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    // Launch puppeteer and generate PDF using bundled Chromium
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: puppeteer.executablePath() // Use Puppeteer's bundled Chromium
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+    await browser.close();
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="quiz_${quizId}_results.pdf"`);
+    res.end(pdfBuffer);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 const LiveLeaderboard = require("../models/liveLeaderboard.model");
 const LiveQuiz = require("../models/liveQuiz.model");
 const User = require("../models/user.model");
@@ -330,8 +444,10 @@ const updateLiveRanks = async (quizId) => {
 };
 
 module.exports = {
+  getCompletedPublicQuizzes,
   getLiveLeaderboard,
   adjustLiveScore,
   disqualifyParticipant,
-  getPublicQuizLeaderboard
-}; 
+  getPublicQuizLeaderboard,
+  exportResultsPDF
+};

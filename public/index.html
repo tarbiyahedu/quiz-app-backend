@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz App Backend</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0652e0 0%, #0544b9 100%);
+      min-height: 100vh;
+      margin: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: rgba(255,255,255,0.95);
+      border-radius: 18px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      padding: 48px 36px 36px 36px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+    }
+    .logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 18px;
+    }
+    h1 {
+      color: #2563eb;
+      margin-bottom: 8px;
+      font-size: 2.2rem;
+      letter-spacing: 1px;
+    }
+    .status {
+      margin: 18px 0 0 0;
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #059669;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .status.error {
+      color: #dc2626;
+    }
+    .desc {
+      color: #374151;
+      margin-bottom: 18px;
+      font-size: 1.05rem;
+    }
+    .footer {
+      margin-top: 32px;
+      font-size: 0.95rem;
+      color: #6b7280;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 24px 8px; }
+      h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://img.icons8.com/color/96/000000/quiz.png" alt="Tarbiyah Quiz" class="logo" />
+    <h1>Quiz App Backend</h1>
+    <div class="desc">Welcome to the backend server for the Quiz App.<br>All systems are ready to serve your requests.</div>
+    <div id="status" class="status">
+      <span style="font-size:1.3em;">🟢</span> Server Status: <span id="server-status">Checking...</span>
+    </div>
+    <div class="footer">&copy; 2025 Quiz App. All rights reserved.</div>
+  </div>
+  <script>
+    // Check server status via fetch
+    fetch('/api/health')
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        document.getElementById('server-status').textContent = data.status || 'Running';
+        document.getElementById('status').classList.remove('error');
+        document.getElementById('status').innerHTML = '<span style="font-size:1.3em;">🟢</span> Server Status: ' + (data.status || 'Running');
+      })
+      .catch(() => {
+        document.getElementById('server-status').textContent = 'Error';
+        document.getElementById('status').classList.add('error');
+        document.getElementById('status').innerHTML = '<span style="font-size:1.3em;">🔴</span> Server Status: Error';
+      });
+  </script>
+</body>
+</html>

@@ -36,7 +36,8 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: process.env.API_URL || 'http://localhost:5000',
+        // url: process.env.API_URL || 'http://localhost:5000',
+        url: process.env.API_URL || 'https://quiz-app-backend-pi.vercel.app',
         description: 'Development server'
       }
     ],
@@ -61,35 +62,29 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Middleware
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      "https://tarbiyah-live-quiz-app.vercel.app",
-      "http://localhost:3000"
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: '*',
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('client/build'));
+app.use(express.static('public'));
 
 // Socket.IO setup
 const { initializeSocket } = require("./socket/quiz.socket");
 const path = require("path");
 initializeSocket(server);
 
-// Basic route
-app.get("/", (req, res) => {
-  res.send("Quiz App Backend is running.");
+// Health check endpoint for status display
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'Running' });
+});
+
+// Serve the beautiful index.html for the root route
+app.get('/', (req, res) => {
+  res.sendFile(require('path').join(__dirname, 'public', 'index.html'));
 });
 
 // API Routes with proper prefixes
@@ -133,14 +128,15 @@ process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
 });
 
+
 // Start server
-// Remove or comment out the following block:
-// const PORT = process.env.PORT || 5000;
-// server.listen(PORT, () => {
-//   console.log(`🚀 Server listening on port ${PORT}`);
-//   console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
-//   console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
-// });
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
+  console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
+  console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'https://tarbiyah-live-quiz-app.vercel.app'}`);
+  // console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
+});
 
 // Initialize scheduler after database connection
 mongoose.connection.once('open', () => {

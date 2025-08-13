@@ -9,7 +9,6 @@ const {
   getCompletedQuizzesForUser,
   getCompletedQuizDetails,
   getAllCompletedQuizzesForUser,
-  getCompletedQuizDetailsForAdmin,
   submitMultipleLiveQuizAnswers
 } = require("../controllers/liveQuizAnswer.controller");
 
@@ -190,7 +189,7 @@ router.get("/completed/:quizId", requireStudent, getCompletedQuizDetails);
  *       500:
  *         description: Server error
  */
-router.get("/admin/completed/:quizId", requireAdmin, getCompletedQuizDetailsForAdmin);
+
 
 /**
  * @swagger
@@ -307,5 +306,9 @@ router.put("/:answerId", requireAdmin, updateLiveQuizAnswer);
  *         description: Answer not found
  */
 router.delete("/:answerId", requireAdmin, deleteLiveQuizAnswer);
+
+// Register admin results route (MUST be before the generic :quizId route)
+const { getCompletedQuizDetailsForAdmin } = require("../controllers/liveQuizAnswer.controller");
+router.get("/admin/completed/:quizId", requireAdmin, getCompletedQuizDetailsForAdmin);
 
 module.exports = router; 

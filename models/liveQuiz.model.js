@@ -6,11 +6,11 @@ const liveQuizSchema = mongoose.Schema({
     required: [true, "Quiz title is required"],
     trim: true
   },
-  department: {
+  departments: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Department",
-    required: [true, "Department is required"]
-  },
+    required: true
+  }],
   status: {
     type: String,
     enum: ["draft", "live", "completed", "scheduled"],
@@ -100,13 +100,14 @@ liveQuizSchema.pre('save', function(next) {
   next();
 });
 
+
 // Index for better query performance
-liveQuizSchema.index({ department: 1 });
+liveQuizSchema.index({ departments: 1 });
 liveQuizSchema.index({ status: 1 });
 liveQuizSchema.index({ isLive: 1 });
 liveQuizSchema.index({ createdBy: 1 });
 liveQuizSchema.index({ liveStartAt: 1 });
 liveQuizSchema.index({ liveEndAt: 1 });
-liveQuizSchema.index({ department: 1, status: 1, createdAt: -1 });
+liveQuizSchema.index({ departments: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("LiveQuiz", liveQuizSchema); 

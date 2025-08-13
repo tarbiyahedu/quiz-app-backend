@@ -3,16 +3,17 @@ const mongoose = require("mongoose");
 const userSchema = mongoose.Schema({
   name: {
     type: String,
-    required: [true, "Name is required"],
+    required: function() { return !this.isGuest; },
     trim: true
   },
   email: {
     type: String,
     unique: [true, "Email already exists!"],
     lowercase: true,
-    required: [true, "Email is required"],
+    required: function() { return !this.isGuest; },
     validate: {
       validator: function (v) {
+        if (this.isGuest) return true;
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
       },
       message: '{VALUE} is not a valid email!'
@@ -20,18 +21,23 @@ const userSchema = mongoose.Schema({
   },
   number: {
     type: String,
-    required: [true, "Number is required"],
+    required: function() { return !this.isGuest; },
     trim: true,
     validate: {
       validator: function (v) {
+        if (this.isGuest) return true;
         return /^\d{8,15}$/.test(v); // 8 to 15 digits
       },
       message: '{VALUE} is not a valid phone number!'
     }
   },
+  isGuest: {
+    type: Boolean,
+    default: false
+  },
   role: {
     type: String,
-    enum: ["student", "admin"],
+    enum: ["student", "admin", "guest"],
     default: "student",
     required: [true, "Please specify user role"]
   },
@@ -39,7 +45,7 @@ const userSchema = mongoose.Schema({
     type: [mongoose.Schema.Types.ObjectId],
     ref: "Department",
     required: function() {
-      return this.role === "student";
+      return this.role === "student" && !this.isGuest;
     },
     default: []
   },
@@ -62,11 +68,12 @@ const userSchema = mongoose.Schema({
     sparse: true
   },
   password: {
-    type: String,
-    required: function() {
-      return !this.googleId; // Password only required if not using Google OAuth
-    },
-    minlength: [6, "Password must be at least 6 characters"]
+      type: String,
+      required: function() {
+        // Password required only if not guest and not using Google OAuth
+        return !this.isGuest && !this.googleId;
+      },
+      minlength: [6, "Password must be at least 6 characters"]
   }
 }, {
   timestamps: true

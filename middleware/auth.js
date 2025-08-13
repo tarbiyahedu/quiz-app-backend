@@ -4,6 +4,7 @@ const User = require('../models/user.model');
 // JWT Authentication Middleware
 const verifyJWT = async (req, res, next) => {
   console.log('verifyJWT middleware called');
+  console.log('Request headers:', req.headers);
   try {
     const authHeader = req.headers.authorization;
     
@@ -23,10 +24,18 @@ const verifyJWT = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log('Decoded JWT:', decoded);
+    } catch (err) {
+      console.log('JWT verification error:', err);
+      throw err;
+    }
     
     // Check if user still exists
     const user = await User.findById(decoded.userId).select('-password');
+    console.log('User found from DB:', user);
     
     if (!user) {
       return res.status(401).json({
@@ -43,6 +52,7 @@ const verifyJWT = async (req, res, next) => {
       });
     }
 
+    console.log('Authenticated user role:', user.role);
     req.user = user;
     next();
   } catch (error) {

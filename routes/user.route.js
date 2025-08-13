@@ -21,6 +21,8 @@ router.post("/register", createUser);
 router.post("/login", loginUser);
 router.post("/google-login", googleLogin);
 router.post("/verify-token", verifyToken);
+const { addGuestUser } = require("../controllers/user.controller");
+router.post("/add-guest", addGuestUser);
 
 // Protected routes (authentication required)
 router.use(verifyJWT);

@@ -9,152 +9,28 @@ const {
   deleteLiveQuiz,
   startLiveQuiz,
   endLiveQuiz,
-  publishLiveQuizResults,
-  getAvailableLiveQuizzesForStudent,
   scheduleLiveQuiz,
   cancelScheduledQuiz,
+  publishLiveQuizResults,
+  getAvailableLiveQuizzesForStudent,
   getQuizStatistics,
   getLiveQuizByCode,
   getAllPublicLiveQuizzes,
-  getPublicLiveQuiz
+  getPublicLiveQuiz,
+  guestJoinLiveQuiz,
+  guestSubmitAnswer,
+  guestGetResults
 } = require("../controllers/liveQuiz.controller");
 
-/**
- * @swagger
- * /api/live-quizzes:
- *   post:
- *     summary: Create a new live quiz
- *     tags: [LiveQuizzes]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - title
- *               - department
- *             properties:
- *               title:
- *                 type: string
- *                 description: Quiz title
- *               department:
- *                 type: string
- *                 description: Department ID
- *               maxParticipants:
- *                 type: number
- *                 description: Maximum number of participants
- *                 default: 100
- *     responses:
- *       201:
- *         description: Live quiz created successfully
- *       400:
- *         description: Invalid input data
- *       403:
- *         description: Access denied
- *   get:
- *     summary: Get all live quizzes
- *     tags: [LiveQuizzes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: department
- *         schema:
- *           type: string
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [draft, active, ended]
- *       - in: query
- *         name: page
- *         schema:
- *           type: number
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: number
- *           default: 10
- *     responses:
- *       200:
- *         description: List of live quizzes
- */
-router.post("/", verifyJWT, requireAdmin, createLiveQuiz);
-
+// Main route: Get all live quizzes (admin or student)
 router.get("/", verifyJWT, getAllLiveQuizzes);
 
-/**
- * @swagger
- * /api/live-quizzes/{id}:
- *   get:
- *     summary: Get a specific live quiz
- *     tags: [LiveQuizzes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Live quiz details
- *       404:
- *         description: Live quiz not found
- *   put:
- *     summary: Update a live quiz
- *     tags: [LiveQuizzes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               title:
- *                 type: string
- *               department:
- *                 type: string
- *               status:
- *                 type: string
- *                 enum: [draft, active, ended]
- *               maxParticipants:
- *                 type: number
- *     responses:
- *       200:
- *         description: Live quiz updated successfully
- *       404:
- *         description: Live quiz not found
- *   delete:
- *     summary: Delete a live quiz
- *     tags: [LiveQuizzes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Live quiz deleted successfully
- *       404:
- *         description: Live quiz not found
- */
+// Admin: Create a new live quiz
+router.post("/", verifyJWT, requireAdmin, createLiveQuiz);
+
+// Guest: Join public live quiz
+router.post("/guest/join", guestJoinLiveQuiz);
+
 // Student: Get available live quizzes for their department (not completed)
 router.get("/available",
   (req, res, next) => { console.log('Route: /api/live-quizzes/available hit'); next(); },
@@ -182,19 +58,6 @@ router.put("/:id", verifyJWT, requireAdmin, updateLiveQuiz);
 router.delete("/:id", verifyJWT, requireAdmin, deleteLiveQuiz);
 
 /**
- * @swagger
- * /api/live-quizzes/{id}/publish:
- *   post:
- *     summary: Toggle public result for live quiz
- *     tags: [LiveQuizzes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
  *     requestBody:
  *       required: true
  *       content:
@@ -306,32 +169,6 @@ router.post("/:id/end", verifyJWT, requireAdmin, endLiveQuiz);
  *         description: Quiz not found
  */
 router.post("/:id/schedule", verifyJWT, requireAdmin, scheduleLiveQuiz);
-
-/**
- * @swagger
- * /api/live-quizzes/{id}/cancel-schedule:
- *   post:
- *     summary: Cancel a scheduled live quiz
- *     tags: [Live Quizzes]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Quiz ID
- *     responses:
- *       200:
- *         description: Schedule cancelled successfully
- *       400:
- *         description: Quiz is not scheduled
- *       403:
- *         description: Access denied
- *       404:
- *         description: Quiz not found
- */
 router.post("/:id/cancel-schedule", verifyJWT, requireAdmin, cancelScheduledQuiz);
 
-module.exports = router; 
+module.exports = router;

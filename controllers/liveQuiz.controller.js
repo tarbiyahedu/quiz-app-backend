@@ -9,29 +9,31 @@ const mongoose = require('mongoose');
 // CREATE LIVE QUIZ
 const createLiveQuiz = async (req, res) => {
   try {
-    const { title, department, maxParticipants, description, totalQuestions, mode } = req.body;
+
+    const { title, departments, maxParticipants, description, totalQuestions, mode, isPublic } = req.body;
 
     // Validation for required fields
-    if (!title || !department) {
-      return res.status(400).json({ success: false, message: 'Quiz title and department are required.' });
+    if (!title || !departments || !Array.isArray(departments) || departments.length === 0) {
+      return res.status(400).json({ success: false, message: 'Quiz title and at least one department are required.' });
     }
 
     const newLiveQuiz = new LiveQuiz({
       title,
-      department,
+      departments,
       maxParticipants,
       description,
       totalQuestions,
       mode,
       createdBy: req.user._id,
       status: 'draft', // Create quiz in draft status
-      isLive: false
+      isLive: false,
+      isPublic: typeof isPublic === 'boolean' ? isPublic : false
     });
 
     await newLiveQuiz.save();
 
     const populatedQuiz = await LiveQuiz.findById(newLiveQuiz._id)
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email');
 
     res.status(201).json({
@@ -50,26 +52,25 @@ const createLiveQuiz = async (req, res) => {
 // GET ALL LIVE QUIZZES
 const getAllLiveQuizzes = async (req, res) => {
   try {
+    console.log('getAllLiveQuizzes called');
+    console.log('Request user:', req.user);
+    console.log('Request query:', req.query);
     const { department, status, page = 1, limit = 10 } = req.query;
-    
     const filter = {};
-    if (department) filter.department = department;
+    if (department) filter.departments = department;
     if (status) filter.status = status;
 
     // If user is student, show quizzes from all their departments
     if (req.user && req.user.role === 'student') {
       if (req.user.departments && Array.isArray(req.user.departments) && req.user.departments.length > 0) {
-        filter.department = { $in: req.user.departments };
-      } else if (req.user.department) {
-        // Fallback to old department field for backward compatibility
-        filter.department = req.user.department;
+        filter.departments = { $in: req.user.departments };
       }
     }
 
     const skip = (page - 1) * limit;
-    
+
     const quizzes = await LiveQuiz.find(filter)
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email')
       .skip(skip)
       .limit(parseInt(limit))
@@ -77,6 +78,7 @@ const getAllLiveQuizzes = async (req, res) => {
 
     const total = await LiveQuiz.countDocuments(filter);
 
+    console.log('Quizzes found:', quizzes.length);
     res.status(200).json({
       success: true,
       data: quizzes,
@@ -88,6 +90,7 @@ const getAllLiveQuizzes = async (req, res) => {
       }
     });
   } catch (error) {
+    console.log('Error in getAllLiveQuizzes:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -101,7 +104,7 @@ const getOneLiveQuiz = async (req, res) => {
     const { id } = req.params;
 
     const quiz = await LiveQuiz.findById(id)
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email');
 
     if (!quiz) {
@@ -146,7 +149,7 @@ const getPublicLiveQuiz = async (req, res) => {
     const { id } = req.params;
 
     const quiz = await LiveQuiz.findById(id)
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email');
 
     if (!quiz) {
@@ -178,11 +181,95 @@ const getPublicLiveQuiz = async (req, res) => {
 };
 
 // GET LIVE QUIZ BY CODE
+// GUEST JOIN PUBLIC LIVE QUIZ
+const guestJoinLiveQuiz = async (req, res) => {
+  try {
+    const { quizId, name, contact } = req.body;
+    if (!quizId || !name || !contact) {
+      return res.status(400).json({ success: false, message: 'Quiz ID, guest name, and contact are required.' });
+    }
+    const quiz = await LiveQuiz.findById(quizId);
+    if (!quiz || !quiz.isPublic || !quiz.isLive) {
+      return res.status(403).json({ success: false, message: 'Quiz is not available for guest participation.' });
+    }
+    // Create guest user (no password)
+    const guestUser = new User({
+      name,
+      number: contact,
+      email: contact.includes('@') ? contact : undefined,
+      isGuest: true,
+      role: 'guest',
+      approved: true
+    });
+    await guestUser.save();
+    // Emit socket event for live participant update
+    if (req.app && req.app.get('io')) {
+      req.app.get('io').to(quizId).emit('participant-joined', { user: guestUser, role: 'guest' });
+    }
+    return res.status(201).json({ success: true, message: 'Guest joined quiz.', guestId: guestUser._id });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GUEST SUBMIT ANSWER
+const guestSubmitAnswer = async (req, res) => {
+  try {
+    const { quizId, guestId, questionId, answer } = req.body;
+    if (!quizId || !guestId || !questionId || !answer) {
+      return res.status(400).json({ success: false, message: 'Missing required fields.' });
+    }
+    // Validate quiz and guest
+    const quiz = await LiveQuiz.findById(quizId);
+    if (!quiz || !quiz.isPublic || !quiz.isLive) {
+      return res.status(403).json({ success: false, message: 'Quiz is not available.' });
+    }
+    const guestUser = await User.findById(guestId);
+    if (!guestUser || !guestUser.isGuest) {
+      return res.status(403).json({ success: false, message: 'Invalid guest.' });
+    }
+    // Save answer
+    const liveAnswer = new LiveQuizAnswer({
+      liveQuizId: quizId,
+      userId: guestId,
+      questionId,
+      answer
+    });
+    await liveAnswer.save();
+    return res.status(201).json({ success: true, message: 'Answer submitted.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GUEST GET RESULTS
+const guestGetResults = async (req, res) => {
+  try {
+    const { quizId, guestId } = req.query;
+    if (!quizId || !guestId) {
+      return res.status(400).json({ success: false, message: 'Quiz ID and guest ID required.' });
+    }
+    const quiz = await LiveQuiz.findById(quizId);
+    if (!quiz || !quiz.isPublic) {
+      return res.status(403).json({ success: false, message: 'Quiz is not public.' });
+    }
+    const guestUser = await User.findById(guestId);
+    if (!guestUser || !guestUser.isGuest) {
+      return res.status(403).json({ success: false, message: 'Invalid guest.' });
+    }
+    // Fetch answers and results
+    const answers = await LiveQuizAnswer.find({ liveQuizId: quizId, userId: guestId });
+    // Optionally, calculate score, etc.
+    return res.status(200).json({ success: true, answers });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 const getLiveQuizByCode = async (req, res) => {
   try {
     const { code } = req.params;
     const quiz = await LiveQuiz.findOne({ code: code.toUpperCase() })
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email');
     if (!quiz) {
       return res.status(404).json({
@@ -237,7 +324,7 @@ const updateLiveQuiz = async (req, res) => {
     await quiz.save();
 
     const updatedQuiz = await LiveQuiz.findById(id)
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email');
 
     res.status(200).json({
@@ -674,7 +761,7 @@ const getQuizStatistics = async (req, res) => {
     const skip = (page - 1) * limit;
     
     const quizzes = await LiveQuiz.find(filter)
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email')
       .skip(skip)
       .limit(parseInt(limit))
@@ -702,17 +789,26 @@ const getQuizStatistics = async (req, res) => {
       const userScores = {};
 
       answers.forEach(answer => {
-        const userId = answer.userId._id.toString();
-        if (!userScores[userId]) {
-          userScores[userId] = {
+        let userKey;
+        if (answer.userId && answer.userId._id) {
+          userKey = answer.userId._id.toString();
+        } else if (answer.isGuest) {
+          // Use guestName + guestEmail + answer._id as a unique key
+          userKey = `guest:${answer.guestName || 'Unknown'}:${answer.guestEmail || ''}:${answer._id}`;
+        } else {
+          // Fallback for any other case
+          userKey = `unknown:${answer._id}`;
+        }
+        if (!userScores[userKey]) {
+          userScores[userKey] = {
             totalScore: 0,
             totalPossibleScore: 0,
             answers: 0
           };
         }
-        userScores[userId].totalScore += answer.score;
-        userScores[userId].totalPossibleScore += answer.questionId.marks;
-        userScores[userId].answers += 1;
+        userScores[userKey].totalScore += answer.score;
+        userScores[userKey].totalPossibleScore += answer.questionId.marks;
+        userScores[userKey].answers += 1;
         totalAnswers++;
       });
 
@@ -729,7 +825,7 @@ const getQuizStatistics = async (req, res) => {
         _id: quiz._id,
         title: quiz.title,
         description: quiz.description,
-        department: quiz.department,
+        departments: quiz.departments,
         createdBy: quiz.createdBy,
         status: quiz.status,
         timeLimit: quiz.timeLimit,
@@ -771,7 +867,7 @@ const getQuizStatistics = async (req, res) => {
 const getAllPublicLiveQuizzes = async (req, res) => {
   try {
     const quizzes = await LiveQuiz.find({ isPublic: true, status: { $in: ['live', 'scheduled'] } })
-      .populate('department', 'name')
+      .populate('departments', 'name')
       .populate('createdBy', 'name email');
     res.status(200).json({ success: true, data: quizzes });
   } catch (error) {
@@ -794,5 +890,8 @@ module.exports = {
   getQuizStatistics,
   getLiveQuizByCode,
   getAllPublicLiveQuizzes,
-  getPublicLiveQuiz
+  getPublicLiveQuiz,
+  guestJoinLiveQuiz,
+  guestSubmitAnswer,
+  guestGetResults
 }; 

@@ -1,3 +1,21 @@
+// ADD GUEST USER API
+const addGuestUser = async (req, res) => {
+  try {
+    const { name, contact } = req.body;
+    if (!name || !contact) {
+      return res.status(400).json({ success: false, message: "Name and contact required" });
+    }
+    const user = await User.create({
+      name: `Guest ${name}`,
+      contact,
+      role: 'guest',
+      approved: true
+    });
+    res.status(201).json({ success: true, data: user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 const mongoose = require("mongoose");
 const { v4: uuidv4 } = require("uuid");
 const User = require("../models/user.model");
@@ -499,7 +517,8 @@ module.exports = {
   deleteUser,
   getUsersByDepartment,
   verifyToken,
-  updateOwnProfile
+  updateOwnProfile,
+  addGuestUser
 };
 
 
