@@ -184,19 +184,32 @@ const getPublicLiveQuiz = async (req, res) => {
 // GUEST JOIN PUBLIC LIVE QUIZ
 const guestJoinLiveQuiz = async (req, res) => {
   try {
-    const { quizId, name, contact } = req.body;
-    if (!quizId || !name || !contact) {
-      return res.status(400).json({ success: false, message: 'Quiz ID, guest name, and contact are required.' });
+    const { quizId, name, email = "", phone = "" } = req.body;
+    if (!quizId || !name || (!email && !phone)) {
+      return res.status(400).json({ success: false, message: 'Quiz ID, guest name, and mobile/email are required.' });
     }
     const quiz = await LiveQuiz.findById(quizId);
     if (!quiz || !quiz.isPublic || !quiz.isLive) {
       return res.status(403).json({ success: false, message: 'Quiz is not available for guest participation.' });
     }
+    // Duplicate check
+    if (email) {
+      const existingEmail = await User.findOne({ email: email.toLowerCase(), isGuest: true });
+      if (existingEmail) {
+        return res.status(500).json({ success: false, message: 'Email already exists!' });
+      }
+    }
+    if (phone) {
+      const existingPhone = await User.findOne({ number: phone, isGuest: true });
+      if (existingPhone) {
+        return res.status(500).json({ success: false, message: 'Phone number already exists!' });
+      }
+    }
     // Create guest user (no password)
     const guestUser = new User({
       name,
-      number: contact,
-      email: contact.includes('@') ? contact : undefined,
+      email: email ? email.toLowerCase() : undefined,
+      number: phone ? phone : undefined,
       isGuest: true,
       role: 'guest',
       approved: true
@@ -208,6 +221,13 @@ const guestJoinLiveQuiz = async (req, res) => {
     }
     return res.status(201).json({ success: true, message: 'Guest joined quiz.', guestId: guestUser._id });
   } catch (error) {
+    // Custom error for duplicate key
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.email) {
+      return res.status(500).json({ success: false, message: 'Email already exists!' });
+    }
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.number) {
+      return res.status(500).json({ success: false, message: 'Phone number already exists!' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 };
