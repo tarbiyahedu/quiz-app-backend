@@ -36,8 +36,8 @@ const swaggerOptions = {
     },
     servers: [
       {
-        // url: process.env.API_URL || 'http://localhost:5000',
-        url: process.env.API_URL || 'https://quiz-app-backend-pi.vercel.app',
+        url: process.env.API_URL || 'http://localhost:5000',
+        // url: process.env.API_URL || 'https://quiz-app-backend-pi.vercel.app',
         description: 'Development server'
       }
     ],
@@ -132,10 +132,9 @@ process.on('uncaughtException', (err) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
+  console.log(`🚀 Server listening on port : http://localhost:${PORT}`);
   console.log(`📚 API Documentation available at: http://localhost:${PORT}/api/docs`);
-  console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'https://tarbiyah-live-quiz-app.vercel.app'}`);
-  // console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
+  console.log(`🌐 Frontend available at: ${process.env.CLIENT_ORIGIN || 'http://localhost:3000'}`);
 });
 
 // Initialize scheduler after database connection

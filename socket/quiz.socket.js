@@ -77,6 +77,8 @@ const initializeSocket = (server) => {
     }
   });
 
+ 
+
   // Start timer updates
   if (!timerInterval) {
     timerInterval = startTimerUpdates();
