@@ -22,7 +22,13 @@ const getCompletedPublicQuizzes = async (req, res) => {
   }
 };
 // Puppeteer-based PDF export for quiz results
-const puppeteer = require('puppeteer');
+let puppeteer, chromium;
+try {
+  chromium = require('chrome-aws-lambda');
+  puppeteer = require('puppeteer-core');
+} catch (e) {
+  puppeteer = require('puppeteer');
+}
 const exportResultsPDF = async (req, res) => {
   try {
     const { quizId } = req.params;
@@ -94,20 +100,35 @@ const exportResultsPDF = async (req, res) => {
       </html>
     `;
 
-    // Launch puppeteer and generate PDF using bundled Chromium
-    const browser = await puppeteer.launch({
-  headless: 'new',
-  args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
-    await browser.close();
+    // Launch puppeteer and generate PDF using Vercel-compatible setup if available
+    let browser;
+    try {
+      if (chromium) {
+        browser = await puppeteer.launch({
+          args: chromium.args,
+          executablePath: await chromium.executablePath,
+          headless: chromium.headless,
+        });
+      } else {
+        browser = await puppeteer.launch({
+          headless: 'new',
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+      }
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+      await browser.close();
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="quiz_${quizId}_results.pdf"`);
-    res.end(pdfBuffer);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="quiz_${quizId}_results.pdf"`);
+      res.end(pdfBuffer);
+    } catch (err) {
+      console.error('PDF Export Error:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
   } catch (err) {
+    console.error('PDF Export Error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
