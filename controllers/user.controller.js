@@ -17,6 +17,7 @@ const addGuestUser = async (req, res) => {
   }
 };
 const mongoose = require("mongoose");
+const { ObjectId } = require("mongodb");
 const { v4: uuidv4 } = require("uuid");
 const User = require("../models/user.model");
 const Department = require("../models/department.model");
@@ -421,7 +422,7 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    await User.deleteOne({ _id: mongoose.Types.ObjectId(id) });
+  await User.findByIdAndDelete(new mongoose.Types.ObjectId(id));
     
     res.status(200).json({
       success: true,

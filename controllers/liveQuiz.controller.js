@@ -189,8 +189,14 @@ const guestJoinLiveQuiz = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Quiz ID, guest name, and mobile/email are required.' });
     }
     const quiz = await LiveQuiz.findById(quizId);
-    if (!quiz || !quiz.isPublic || !quiz.isLive) {
-      return res.status(403).json({ success: false, message: 'Quiz is not available for guest participation.' });
+    if (!quiz) {
+      return res.status(404).json({ success: false, message: 'Quiz not found.' });
+    }
+    if (!quiz.isLive) {
+      return res.status(403).json({ success: false, message: 'The quiz is not live at the moment, so you cannot join this quiz now. Please contact the admin' });
+    }
+    if (!quiz.isPublic) {
+      return res.status(403).json({ success: false, message: 'Quiz is not available for guest participation. Please contact the admin' });
     }
     // Duplicate check
     if (email) {
