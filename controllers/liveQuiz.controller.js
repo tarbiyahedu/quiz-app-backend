@@ -180,61 +180,108 @@ const getPublicLiveQuiz = async (req, res) => {
   }
 };
 
+
+
 // GET LIVE QUIZ BY CODE
 // GUEST JOIN PUBLIC LIVE QUIZ
 const guestJoinLiveQuiz = async (req, res) => {
   try {
     const { quizId, name, email = "", phone = "" } = req.body;
+    // If registered user (not guest), check if already joined
+    if (!email && !phone && req.user && req.user._id) {
+      const userId = req.user._id;
+      const LiveLeaderboard = require('../models/liveLeaderboard.model');
+      const alreadyJoined = await LiveLeaderboard.findOne({ liveQuizId: quizId, userId });
+      if (alreadyJoined) {
+        return res.status(409).json({ success: false, message: 'You have already joined this quiz.' });
+      }
+    }
+    console.log('[GUEST JOIN] Payload:', req.body);
     if (!quizId || !name || (!email && !phone)) {
+      console.log('[GUEST JOIN] Missing required fields:', { quizId, name, email, phone });
       return res.status(400).json({ success: false, message: 'Quiz ID, guest name, and mobile/email are required.' });
     }
     const quiz = await LiveQuiz.findById(quizId);
     if (!quiz) {
+      console.log('[GUEST JOIN] Quiz not found:', quizId);
       return res.status(404).json({ success: false, message: 'Quiz not found.' });
     }
     if (!quiz.isLive) {
+      console.log('[GUEST JOIN] Quiz not live:', quizId);
       return res.status(403).json({ success: false, message: 'The quiz is not live at the moment, so you cannot join this quiz now. Please contact the admin' });
     }
     if (!quiz.isPublic) {
+      console.log('[GUEST JOIN] Quiz not public:', quizId);
       return res.status(403).json({ success: false, message: 'Quiz is not available for guest participation. Please contact the admin' });
     }
-    // Duplicate check
-    if (email) {
-      const existingEmail = await User.findOne({ email: email.toLowerCase(), isGuest: true });
-      if (existingEmail) {
-        return res.status(500).json({ success: false, message: 'Email already exists!' });
+
+
+
+    // Find or create guest user
+    let guestUser = null;
+    if (email && email.trim() !== "") {
+      guestUser = await User.findOne({ email: email.toLowerCase(), isGuest: true });
+      console.log('[GUEST JOIN] Searched by email:', email, 'Found:', !!guestUser);
+    }
+    if (!guestUser && phone && phone.trim() !== "") {
+      guestUser = await User.findOne({ number: phone, isGuest: true });
+      console.log('[GUEST JOIN] Searched by phone:', phone, 'Found:', !!guestUser);
+    }
+  // Determine userId for leaderboard entry
+  const LiveLeaderboard = require('../models/liveLeaderboard.model');
+  let userId = guestUser ? guestUser._id : null;
+    if (guestUser) {
+      // Update name if changed
+      if (guestUser.name !== name) {
+        guestUser.name = name;
+        await guestUser.save();
+        console.log('[GUEST JOIN] Updated guest name:', name);
       }
-    }
-    if (phone) {
-      const existingPhone = await User.findOne({ number: phone, isGuest: true });
-      if (existingPhone) {
-        return res.status(500).json({ success: false, message: 'Phone number already exists!' });
+      // Emit socket event for live participant update
+      if (req.app && req.app.get('io')) {
+        req.app.get('io').to(quizId).emit('participant-joined', { user: guestUser, role: 'guest' });
       }
+      console.log('[GUEST JOIN] Returning existing guest:', guestUser._id);
+      return res.status(200).json({ success: true, message: 'Guest joined quiz.', guestId: guestUser._id });
+    } else {
+      // Create guest user (no password)
+      const userData = {
+        name,
+        isGuest: true,
+        role: 'guest',
+        approved: true
+      };
+      if (email && typeof email === 'string' && email.trim() !== "") {
+        userData.email = email.toLowerCase();
+      } else {
+        if ('email' in userData) delete userData.email;
+      }
+      if (phone && phone.trim() !== "") userData.number = phone;
+      guestUser = new User(userData);
+      await guestUser.save();
+      userId = guestUser._id;
+      // Check again after creation
+      const alreadyJoined = await LiveLeaderboard.findOne({ liveQuizId: quizId, userId });
+      if (alreadyJoined) {
+        return res.status(409).json({ success: false, message: 'You have already joined this quiz.' });
+      }
+      console.log('[GUEST JOIN] Created new guest:', guestUser._id);
+      // Emit socket event for live participant update
+      if (req.app && req.app.get('io')) {
+        req.app.get('io').to(quizId).emit('participant-joined', { user: guestUser, role: 'guest' });
+      }
+      return res.status(201).json({ success: true, message: 'Guest joined quiz.', guestId: guestUser._id });
     }
-    // Create guest user (no password)
-    const guestUser = new User({
-      name,
-      email: email ? email.toLowerCase() : undefined,
-      number: phone ? phone : undefined,
-      isGuest: true,
-      role: 'guest',
-      approved: true
-    });
-    await guestUser.save();
-    // Emit socket event for live participant update
-    if (req.app && req.app.get('io')) {
-      req.app.get('io').to(quizId).emit('participant-joined', { user: guestUser, role: 'guest' });
-    }
-    return res.status(201).json({ success: true, message: 'Guest joined quiz.', guestId: guestUser._id });
   } catch (error) {
+    console.error('[GUEST JOIN] Error:', error);
     // Custom error for duplicate key
     if (error.code === 11000 && error.keyPattern && error.keyPattern.email) {
-      return res.status(500).json({ success: false, message: 'Email already exists!' });
+      return res.status(500).json({ success: false, message: 'Email already exists!', error: error });
     }
     if (error.code === 11000 && error.keyPattern && error.keyPattern.number) {
-      return res.status(500).json({ success: false, message: 'Phone number already exists!' });
+      return res.status(500).json({ success: false, message: 'Phone number already exists!', error: error });
     }
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message, error });
   }
 };
 

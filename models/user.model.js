@@ -8,12 +8,12 @@ const userSchema = mongoose.Schema({
   },
   email: {
     type: String,
-    unique: [true, "Email already exists!"],
     lowercase: true,
     required: function() { return !this.isGuest; },
+    set: v => (v === "" ? undefined : v), // খালি string হলে বাদ দেবে
     validate: {
       validator: function (v) {
-        if (this.isGuest) return true;
+        if (this.isGuest || !v) return true; // guest হলে বা খালি হলে validate করবে না
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
       },
       message: '{VALUE} is not a valid email!'
@@ -23,9 +23,10 @@ const userSchema = mongoose.Schema({
     type: String,
     required: function() { return !this.isGuest; },
     trim: true,
+    set: v => (v === "" ? undefined : v), // খালি string হলে বাদ দেবে
     validate: {
       validator: function (v) {
-        if (this.isGuest) return true;
+        if (this.isGuest || !v) return true; // guest হলে বা খালি হলে validate করবে না
         return /^\d{8,15}$/.test(v); // 8 to 15 digits
       },
       message: '{VALUE} is not a valid phone number!'
@@ -49,7 +50,6 @@ const userSchema = mongoose.Schema({
     },
     default: []
   },
-  // Keep the old department field for backward compatibility
   department: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Department",
@@ -68,19 +68,33 @@ const userSchema = mongoose.Schema({
     sparse: true
   },
   password: {
-      type: String,
-      required: function() {
-        // Password required only if not guest and not using Google OAuth
-        return !this.isGuest && !this.googleId;
-      },
-      minlength: [6, "Password must be at least 6 characters"]
+    type: String,
+    required: function() {
+      // Password required only if not guest and not using Google OAuth
+      return !this.isGuest && !this.googleId;
+    },
+    minlength: [6, "Password must be at least 6 characters"]
   }
 }, {
   timestamps: true
 });
 
-// Index for better query performance
+// ------------------ Indexes ------------------
+
+// Query optimization
 userSchema.index({ departments: 1, role: 1, approved: 1, createdAt: -1 });
-userSchema.index({ department: 1, role: 1, approved: 1, createdAt: -1 }); // Keep old index for backward compatibility
+userSchema.index({ department: 1, role: 1, approved: 1, createdAt: -1 }); // Old dept field
+
+// Unique email only for registered users
+userSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { isGuest: false } }
+);
+
+// Unique phone number only for registered users
+userSchema.index(
+  { number: 1 },
+  { unique: true, partialFilterExpression: { isGuest: false } }
+);
 
 module.exports = mongoose.model("User", userSchema);

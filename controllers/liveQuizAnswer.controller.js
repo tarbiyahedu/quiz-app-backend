@@ -352,25 +352,51 @@ const submitMultipleLiveQuizAnswers = async (req, res) => {
 
     let userId = req.user?._id;
     if (isGuest) {
-      // Create/find guest user in User collection
+      // Sanitize and validate guest fields
       const User = require('../models/user.model');
       let guestUser = null;
-      // Try to find by email or mobile
-      if (guestEmail) {
-        guestUser = await User.findOne({ email: guestEmail });
-      } else if (guestMobile) {
-        guestUser = await User.findOne({ mobile: guestMobile });
+      const cleanEmail = typeof guestEmail === 'string' ? guestEmail.replace(/\s|\t/g, '').trim() : '';
+      const cleanMobile = typeof guestMobile === 'string' ? guestMobile.replace(/\s|\t/g, '').trim() : '';
+      const cleanName = typeof guestName === 'string' ? guestName.trim() : '';
+      // Validate email
+      if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        console.error('[GUEST ANSWERS SUBMIT] Invalid guestEmail:', cleanEmail);
+        return res.status(400).json({ success: false, message: 'Invalid guest email.' });
+      }
+      // Validate mobile
+      if (cleanMobile && !/^\+?\d{7,15}$/.test(cleanMobile)) {
+        console.error('[GUEST ANSWERS SUBMIT] Invalid guestMobile:', cleanMobile);
+        return res.status(400).json({ success: false, message: 'Invalid guest mobile.' });
+      }
+      // Prevent guests from using emails already registered to non-guests
+      if (cleanEmail) {
+        const registeredUser = await User.findOne({ email: cleanEmail, isGuest: false });
+        if (registeredUser) {
+          console.error('[GUEST ANSWERS SUBMIT] Email already registered for non-guest:', cleanEmail);
+          return res.status(400).json({ success: false, message: 'This email is already registered. Please use a different email or join as a registered user.' });
+        }
+        guestUser = await User.findOne({ email: cleanEmail, isGuest: true });
+      } else if (cleanMobile) {
+        const registeredMobileUser = await User.findOne({ number: cleanMobile, isGuest: false });
+        if (registeredMobileUser) {
+          console.error('[GUEST ANSWERS SUBMIT] Mobile number already registered for non-guest:', cleanMobile);
+          return res.status(400).json({ success: false, message: 'This mobile number is already registered. Please use a different number or join as a registered user.' });
+        }
+        guestUser = await User.findOne({ number: cleanMobile, isGuest: true });
       }
       // If not found, create new guest user
       if (!guestUser) {
         guestUser = new User({
-          name: guestName,
-          email: guestEmail || undefined,
-          mobile: guestMobile || undefined,
-          role: 'Guest',
+          name: cleanName,
+          email: cleanEmail || undefined,
+          number: cleanMobile || undefined,
+          role: 'guest',
           isGuest: true
         });
         await guestUser.save();
+        console.log('[GUEST ANSWERS SUBMIT] Created new guest:', guestUser._id);
+      } else {
+        console.log('[GUEST ANSWERS SUBMIT] Reusing guest:', guestUser._id);
       }
       userId = guestUser._id;
     } else {
@@ -409,62 +435,43 @@ const submitMultipleLiveQuizAnswers = async (req, res) => {
     // Process each answer
     for (const answerData of answers) {
       const { questionId, answerText, timeTaken = 0 } = answerData;
-
       const question = questionMap.get(questionId);
       if (!question) {
         console.log(`Question not found: ${questionId}`);
-        continue; // Skip invalid questions
+        continue;
       }
-
       console.log(`Processing answer for question: ${question.questionText}`);
       console.log(`User answer: ${answerText}, Correct answer: ${question.correctAnswer}`);
-
-      // Defensive: handle both string and array answerText
       let processedAnswerText = answerText;
       if (Array.isArray(answerText)) {
-        // For multiple-answer MCQ, use as is (or join if you want a string)
-        // processedAnswerText = answerText.join(','); // Uncomment if you want to store as string
+        // processedAnswerText = answerText.join(',');
       } else if (typeof answerText === 'string') {
         processedAnswerText = answerText.trim();
       } else {
         processedAnswerText = '';
       }
-
-      // Validate answer based on question type
       let isCorrect = false;
       let score = 0;
-
-      // Only check correctness if answer is not empty
       if ((Array.isArray(processedAnswerText) && processedAnswerText.length > 0) || (typeof processedAnswerText === 'string' && processedAnswerText !== '')) {
         switch (question.type) {
           case 'MCQ': {
-            // Normalize correct answers - prioritize correctAnswers array for MCQ
             let correctAnswers = [];
             if (Array.isArray(question.correctAnswers) && question.correctAnswers.length > 0) {
               correctAnswers = question.correctAnswers;
             } else if (question.correctAnswer) {
               correctAnswers = [question.correctAnswer];
             }
-            
-            // Normalize user answers
             let userAnswers = [];
             if (Array.isArray(processedAnswerText)) {
               userAnswers = processedAnswerText.filter(ans => ans && ans.trim() !== '');
             } else if (processedAnswerText && typeof processedAnswerText === 'string' && processedAnswerText.trim() !== '') {
               userAnswers = [processedAnswerText.trim()];
             }
-            
-            // Check if it's multiple choice (more than one correct answer)
             const isMultiple = correctAnswers.length > 1;
-            
             if (isMultiple) {
-              // For multiple correct answers, use array comparison
               isCorrect = arraysEqual(userAnswers, correctAnswers);
             } else {
-              // For single correct answer, use string comparison
-              isCorrect = userAnswers.length === 1 && 
-                         correctAnswers.length === 1 && 
-                         userAnswers[0] === correctAnswers[0];
+              isCorrect = userAnswers.length === 1 && correctAnswers.length === 1 && userAnswers[0] === correctAnswers[0];
             }
             break;
           }
@@ -476,9 +483,7 @@ const submitMultipleLiveQuizAnswers = async (req, res) => {
             if (processedAnswerText && question.correctAnswer) {
               const userAnswer = processedAnswerText.toLowerCase().trim();
               const correctAnswer = question.correctAnswer.toLowerCase().trim();
-              isCorrect = userAnswer === correctAnswer || 
-                         userAnswer.includes(correctAnswer) || 
-                         correctAnswer.includes(userAnswer);
+              isCorrect = userAnswer === correctAnswer || userAnswer.includes(correctAnswer) || correctAnswer.includes(userAnswer);
             }
             break;
           case 'Match':
@@ -488,35 +493,35 @@ const submitMultipleLiveQuizAnswers = async (req, res) => {
             isCorrect = false;
         }
       }
-
-      // Calculate score
       if (isCorrect) {
         score = question.marks;
         totalScore += score;
       }
-
       totalTimeTaken += timeTaken;
-
       console.log(`Answer result: Correct=${isCorrect}, Score=${score}/${question.marks}`);
-
-      // Create answer
-      const newAnswer = new LiveQuizAnswer({
-        liveQuizId: quizId,
-        questionId: questionId,
-        answerText: processedAnswerText || '', // Store as string or array
-        submittedAt: new Date(),
-        timeTaken,
-        isCorrect,
-        score,
-        isGuest: !!isGuest,
-        guestName: isGuest ? guestName : undefined,
-        guestEmail: isGuest ? guestEmail : undefined,
-        guestMobile: isGuest ? guestMobile : undefined,
-        userId: userId
-      });
-
-      await newAnswer.save();
-      submittedAnswers.push(newAnswer);
+      // Upsert answer: overwrite previous answer for this user/question/quiz
+      const upsertedAnswer = await LiveQuizAnswer.findOneAndUpdate(
+        {
+          liveQuizId: quizId,
+          questionId: questionId,
+          userId: userId
+        },
+        {
+          $set: {
+            answerText: processedAnswerText || '',
+            submittedAt: new Date(),
+            timeTaken,
+            isCorrect,
+            score,
+            isGuest: !!isGuest,
+            guestName: isGuest ? guestName : undefined,
+            guestEmail: isGuest ? guestEmail : undefined,
+            guestMobile: isGuest ? guestMobile : undefined
+          }
+        },
+        { upsert: true, new: true }
+      );
+      submittedAnswers.push(upsertedAnswer);
     }
 
     console.log(`Successfully submitted ${submittedAnswers.length} answers`);
