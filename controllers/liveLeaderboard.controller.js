@@ -1,62 +1,3 @@
-// Excel export for quiz results
-const exportResultsExcel = async (req, res) => {
-  try {
-    const { quizId } = req.params;
-    const quiz = await LiveQuiz.findById(quizId);
-    if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
-    // Get leaderboard data
-    let leaderboard = [];
-    try {
-      const mockReq = { params: { quizId }, query: {} };
-      let leaderboardData;
-      await getPublicQuizLeaderboard(mockReq, {
-        status: () => ({
-          json: (d) => {
-            leaderboardData = d;
-            return d;
-          }
-        })
-      });
-      leaderboard = leaderboardData?.data?.leaderboard || [];
-    } catch (err) {
-      leaderboard = [];
-    }
-    // Generate Excel file
-    const ExcelJS = require('exceljs');
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Quiz Results');
-    sheet.columns = [
-      { header: 'Rank', key: 'rank', width: 8 },
-      { header: 'Name', key: 'name', width: 24 },
-      { header: 'Type', key: 'type', width: 12 },
-      { header: 'Score', key: 'score', width: 10 },
-      { header: 'Correct', key: 'correctAnswers', width: 10 },
-      { header: 'Total', key: 'totalQuestions', width: 10 },
-      { header: 'Time (s)', key: 'timeTaken', width: 10 }
-    ];
-    leaderboard.forEach(p => {
-      sheet.addRow({
-        rank: p.rank,
-        name: p.name,
-        type: p.type,
-        score: p.score,
-        correctAnswers: p.correctAnswers,
-        totalQuestions: p.totalQuestions,
-        timeTaken: p.timeTaken
-      });
-    });
-    // Style header
-    sheet.getRow(1).font = { bold: true };
-    // Send Excel file
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="quiz_${quizId}_results.xlsx"`);
-    await workbook.xlsx.write(res);
-    res.end();
-  } catch (err) {
-    console.error('Excel Export Error:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
 // GET COMPLETED PUBLIC QUIZZES FOR LEADERBOARD
 const getCompletedPublicQuizzes = async (req, res) => {
   try {
@@ -159,60 +100,26 @@ const exportResultsPDF = async (req, res) => {
       </html>
     `;
 
-    // Use Playwright for PDF generation (Vercel/serverless compatible)
-    const { chromium } = require('playwright');
+    // Launch puppeteer and generate PDF using Vercel-compatible setup if available
+    let browser;
     try {
-      const browser = await chromium.launch();
+      if (chromium) {
+        browser = await puppeteer.launch({
+          args: chromium.args,
+          executablePath: await chromium.executablePath,
+          headless: chromium.headless,
+        });
+      } else {
+        browser = await puppeteer.launch({
+          headless: 'new',
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+      }
       const page = await browser.newPage();
-      // Inject Google fonts for Bangla and Arabic
-      await page.setContent(`
-        <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Quiz Results PDF</title>
-          <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet" />
-          <style>
-            body { font-family: 'Hind Siliguri', 'Amiri', Arial, Helvetica, sans-serif; background: #f8f9fa; color: #222; }
-            h1 { color: #0E2647; text-align: center; }
-            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-            th { background: #0E2647; color: #fff; }
-            tr:nth-child(even) { background: #f2f2f2; }
-          </style>
-        </head>
-        <body>
-          <h1>Quiz Results: ${quiz.title}</h1>
-          <table>
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Score</th>
-                <th>Correct</th>
-                <th>Total</th>
-                <th>Time (s)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${leaderboard.map(p => `
-                <tr>
-                  <td>${p.rank}</td>
-                  <td>${p.name}</td>
-                  <td>${p.type}</td>
-                  <td>${p.score}</td>
-                  <td>${p.correctAnswers}</td>
-                  <td>${p.totalQuestions}</td>
-                  <td>${p.timeTaken}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body>
-        </html>
-      `, { waitUntil: 'networkidle' });
+      await page.setContent(html, { waitUntil: 'networkidle0' });
       const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
       await browser.close();
+
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="quiz_${quizId}_results.pdf"`);
       res.end(pdfBuffer);
